@@ -4254,6 +4254,8 @@ synchronized(lock) {
 
 要点 
 
+假如t1线程来获取值，t2线程去产生值，那么得到的效果就是t1通过 GuardedObject 去获得到值，t2把产生的值放到GuardedObject 里面，就得到了一个多线程的生产结果的传输
+
 - 有一个结果需要从一个线程传递到另一个线程，让他们关联同一个 GuardedObject 
 - 如果有结果不断从一个线程到另一个线程那么可以使用消息队列（见生产者/消费者） 
 - JDK 中，join 的实现、Future 的实现，采用的就是此模式 
@@ -4269,9 +4271,11 @@ synchronized(lock) {
 class GuardedObject {
     private Object response;
     private final Object lock = new Object();
+  
+  	// t1线程通过调用get方法得到自己想要的数据
     public Object get() {
         synchronized (lock) {
-// 条件不满足则等待
+						// 条件不满足则等待
             while (response == null) {
                 try {
                     lock.wait();
@@ -4282,9 +4286,11 @@ class GuardedObject {
             return response;
         }
     }
+  
+  	// t2线程调用complete方法把自己产生的结果放到t1与t2关联的GuardedObject里面
     public void complete(Object response) {
         synchronized (lock) {
-// 条件满足，通知等待线程
+						// 条件满足，通知等待线程
             this.response = response;
             lock.notifyAll();
         }
@@ -4310,13 +4316,14 @@ public static void main(String[] args) {
             // 子线程执行下载
             List<String> response = download();
             log.debug("download complete...");
+          	// 线程把数据放到GuardedObject里面，别忘了notify操作是在complete里面已经写完了
             guardedObject.complete(response);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }).start();
     log.debug("waiting...");
-    // 主线程阻塞等待
+    // 主线程阻塞等待，别忘了wait的操作已经在get里面写完了
     Object response = guardedObject.get();
     log.debug("get response: [{}] lines", ((List<String>) response).size());
 }
@@ -4344,22 +4351,27 @@ class GuardedObjectV2 {
         synchronized (lock) {
             // 1) 记录最初时间
             long begin = System.currentTimeMillis();
-			// 2) 已经经历的时间
+						// 2) 已经经历的时间
             long timePassed = 0;
             while (response == null) {
-				// 4) 假设 millis 是 1000，结果在 400 时唤醒了，那么还有 600 要等
+								// 4) 假设 millis 是 1000，结果在 400 时唤醒了，那么还有 600 要等
+              	// 即 waitTime 就是本轮要等待的时间，规定的等待时间-已经经过的时间就是本轮要等待的时间
                 long waitTime = millis - timePassed;
                 log.debug("waitTime: {}", waitTime);
+              	
+              	// 如果本轮要等待的时间小于0了，那么就说明总体的等待时间已经超过规定时间 millis 了，自然退出循环即									// 可
                 if (waitTime <= 0) {
                     log.debug("break...");
                     break;
                 }
                 try {
+                  	// 本轮去等待这么长时间
                     lock.wait(waitTime);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-				// 3) 如果提前被唤醒，这时已经经历的时间假设为 400
+								// 3) 如果提前被唤醒，这时已经经历的时间假设为 400
+              	// 更新一下经过了的时间
                 timePassed = System.currentTimeMillis() - begin;
                 log.debug("timePassed: {}, object is null {}",
                         timePassed, response == null);
@@ -4367,9 +4379,11 @@ class GuardedObjectV2 {
             return response;
         }
     }
+  
+  	// complete方法不变
     public void complete(Object response) {
         synchronized (lock) {
-			// 条件满足，通知等待线程
+						// 条件满足，通知等待线程
             this.response = response;
             log.debug("notify...");
             lock.notifyAll();
@@ -4377,6 +4391,10 @@ class GuardedObjectV2 {
     }
 }
 ```
+
+>   需要明白的一件事，之所以设置 timePassed 、waitTime 、 millis 这几个变量不仅是增加超时功能，而且还能增加提前唤醒的功能，比如t1线程调用 get 方法只想等2秒，但是等1秒之后被唤醒了，get 方法里面的代码是会记录经过的时间 timePassed，然后会计算出此轮要等待的时间 waitTime = millis - timePassed，也就是说，就算会被提前唤醒，那么t1等待的时间仍然能保持加起来不超过2秒，join方法的原理就是这样的，不断的调用wait
+
+
 
 测试，没有超时
 
@@ -4445,7 +4463,7 @@ t1.join();
 
 ```java
 synchronized (t1) {
-    // 调用者线程进入 t1 的 waitSet 等待, 直到 t1 运行结束
+    // 调用者线程进入 t1 的 waitSet 等待, 直到 t1 运行结束，只要调用者线程还活着，就会一直进入 t1 的 waitSet 里面		// 等待，就算中途被 notify 也会走循环然后继续 wait ，就达到了当 t1 线程执行完，调用者线程才会执行的效果，也就是  		// join的效果
     while (t1.isAlive()) {
         t1.wait(0);
     }
@@ -4474,12 +4492,15 @@ public final synchronized void join(long millis)
         throw new IllegalArgumentException("timeout value is negative");
     }
 
+  	// 如果传过来的是0，那么就是没有参数的wait
     if (millis == 0) {
         while (isAlive()) {
             wait(0);
         }
+    // 如果传过来的是正经时间，那么就是有时限的wait  
     } else {
         while (isAlive()) {
+          	// 这里的原理和上面的增加了时限的GuardedObjectV2的做法相同
             long delay = millis - now;
             if (delay <= 0) {
                 break;
