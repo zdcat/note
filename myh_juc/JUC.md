@@ -3984,13 +3984,18 @@ static boolean hasTakeout = false;
 
 ```java
 new Thread(() -> {
+  	// 小南先给房子上锁
     synchronized (room) {
         log.debug("有烟没？[{}]", hasCigarette);
+      	// 没烟就休息一会
         if (!hasCigarette) {
             log.debug("没烟，先歇会！");
             sleep(2);
         }
+      	
+      	// 休息完了再问有没有烟
         log.debug("有烟没？[{}]", hasCigarette);
+      	// 如果有烟就开始干活
         if (hasCigarette) {
             log.debug("可以开始干活了");
         }
@@ -4005,9 +4010,10 @@ for (int i = 0; i < 5; i++) {
 }
 sleep(1);
 new Thread(() -> {
-    // 这里能不能加 synchronized (room)？
-    hasCigarette = true;
-    log.debug("烟到了噢！");
+    synchronized (room) {
+      hasCigarette = true;
+      log.debug("烟到了噢！");
+    }
 }, "送烟的").start();
 ```
 
@@ -4073,7 +4079,7 @@ new Thread(() -> {
 ```
 
 - 解决了其它干活的线程阻塞的问题 
-- 但如果有其它线程也在等待条件呢？
+- 但如果有其它线程也在等待条件呢？这里是只有小南线程在 `wait set` 里面等待，假如有多个类似于小南的线程都在里面等待，怎么保证谁被准确的notify呢？
 
 
 
@@ -4219,6 +4225,7 @@ while (!hasCigarette) {
 ```
 
 ```java
+// 一个线程
 synchronized(lock) {
     while(条件不成立) {
         lock.wait();
@@ -4230,6 +4237,12 @@ synchronized(lock) {
     lock.notifyAll();
 }
 ```
+
+很简单：自己条件不成立就一直wait，wait会释放锁给能使条件的成立的线程用，然后自己会被唤醒，然后干活
+
+
+
+
 
 
 
