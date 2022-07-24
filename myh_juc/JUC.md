@@ -1291,22 +1291,24 @@ public static void test3() throws InterruptedException {
 
 - 打断线程不等于中断线程，有以下两种情况：
   - 打断正在运行中的线程并不会影响线程的运行，但如果线程监测到了打断标记为true，可以自行决定后续处理。
-  - 打断阻塞中的线程会让此线程产生一个`InterruptedException`异常，结束线程的运行。但如果该异常被线程捕获住，该线程依然可以自行决定后续处理（终止运行，继续运行，做一些善后工作等等）
+  - 打断阻塞中的线程会让此线程产生一个`InterruptedException`异常，结束线程的  `waiting状态` 。但如果该异常被线程捕获住，该线程依然可以自行决定后续处理（终止运行，继续运行，做一些善后工作等等）
 
 
 
 ### 打断 sleep，wait，join 的线程
 
-这几个方法都会让线程进入阻塞状态 
+这几个方法都会让线程进入 waiting 状态 
 
 打断 sleep 的线程, 会清空打断状态，即仍是 false ，以 sleep 为例
 
 ```java
 private static void test1() throws InterruptedException {
     Thread t1 = new Thread(()->{
+      	// t1线程睡1秒
         sleep(1);
     }, "t1");
     t1.start();
+  	// 主线程等待0.5秒然后打断t1的睡眠
     sleep(0.5);
     t1.interrupt();
     log.debug(" 打断状态: {}", t1.isInterrupted());
@@ -1428,6 +1430,12 @@ t.stop();
 11:49:45.413 c.TestTwoPhaseTermination [main] - stop 
 11:49:45.413 c.TwoPhaseTermination [监控线程] - 料理后事
 ```
+
+所以说两阶段终止就是线程的终止分为两个阶段来看
+
+第一个阶段是调用stop方法，如果是线程正常运行情况下，就是单纯的设置打断标记，然后下次循环的时候就可以知道线程可以终结了，如果线程处于sleep情况下，那么会抛出异常，然后异常被捕获（此时打断标记是false），然后再catch代码里再设置打断标记（这里是第二阶段的打断标记）
+
+
 
 
 
@@ -3254,7 +3262,7 @@ public static void method1() {
 
 ![image-20220317183453057](img\image-20220317183453057.png)
 
-- 这时 Thread-1 加轻量级锁失败，进入锁膨胀流程 
+- 这时 Thread-1 加轻量级锁失败，进入锁膨胀流程 , 注意是加轻量级锁失败之后，才进行锁膨胀
   - 即为 Object 对象申请 Monitor 锁，让 Object 指向重量级锁地址 
   - 然后自己进入 Monitor 的 EntryList BLOCKED
 
@@ -3414,12 +3422,15 @@ public static void main(String[] args) throws IOException {
 }
 ```
 
-```sh
+```java
 11:08:58.117 c.TestBiased [t1] - synchronized 前
+// 默认开启偏向状态，后三位是101，线程id、epoch、age都是0
 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000101 
 11:08:58.121 c.TestBiased [t1] - synchronized 中
+// 上了偏向锁，前面是线程t1的id
 00000000 00000000 00000000 00000000 00011111 11101011 11010000 00000101 
 11:08:58.121 c.TestBiased [t1] - synchronized 后
+// 解锁之后，对象头里还保存着t1的线程id
 00000000 00000000 00000000 00000000 00011111 11101011 11010000 00000101 
 ```
 
@@ -3433,12 +3444,15 @@ public static void main(String[] args) throws IOException {
 
 输出
 
-```sh
+```java
 11:13:10.018 c.TestBiased [t1] - synchronized 前
+// 禁用偏向锁，后三位就是正常情况的 001， 0表示非偏向，01表示正常情况
 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000001 
 11:13:10.021 c.TestBiased [t1] - synchronized 中
+// 上轻量锁
 00000000 00000000 00000000 00000000 00100000 00010100 11110011 10001000 
 11:13:10.021 c.TestBiased [t1] - synchronized 后
+// 解锁之后，回归正常情况（若是偏向锁，对象头会保存线程id）
 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000001 
 ```
 
@@ -3459,13 +3473,16 @@ public static void main(String[] args) throws IOException {
 
 输出
 
-```SH
+```java
 11:22:10.386 c.TestBiased [main] - 调用 hashCode:1778535015 
 11:22:10.391 c.TestBiased [t1] - synchronized 前
+// 调用了hashCode变成正常情况，即markword里面是hashcode、分代年龄、偏向状态
 00000000 00000000 00000000 01101010 00000010 01001010 01100111 00000001 
 11:22:10.393 c.TestBiased [t1] - synchronized 中
+// 上锁，变成轻量级锁
 00000000 00000000 00000000 00000000 00100000 11000011 11110011 01101000 
 11:22:10.393 c.TestBiased [t1] - synchronized 后
+// 解锁，变成正常状态
 00000000 00000000 00000000 01101010 00000010 01001010 01100111 00000001 
 ```
 
@@ -3473,7 +3490,9 @@ public static void main(String[] args) throws IOException {
 
 ##### 撤销 - 其它线程使用对象 
 
-当有其它线程使用偏向锁对象时，会将偏向锁升级为轻量级锁
+当有其它线程使用偏向锁对象时，会将偏向锁升级为轻量级锁，即发生交错的时候，偏向锁会升级成轻量级锁
+
+>   注意这里的wait和notify只是为了保证两个线程上锁的时候不会交错，即保证分开上锁的，不会发生重锁的情况 
 
 ```JAVA
 private static void test2() throws InterruptedException {
@@ -3514,10 +3533,14 @@ private static void test2() throws InterruptedException {
 
 输出
 
-```sh
+```java
+// t1上锁了，所以此时是偏向锁，所以这里前面是t1的线程id
 [t1] - 00000000 00000000 00000000 00000000 00011111 01000001 00010000 00000101 
+// t2这时还没上锁，所以d的对象头仍还还是之前的状态
 [t2] - 00000000 00000000 00000000 00000000 00011111 01000001 00010000 00000101 
+// t2此时已经上了锁，所以会升级成轻量锁，末尾变成00，说明线程争抢会导致偏向状态失效
 [t2] - 00000000 00000000 00000000 00000000 00011111 10110101 11110000 01000000 
+// t2轻量锁解锁，末尾变成001，表示回归正常状态
 [t2] - 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000001 
 ```
 
@@ -3571,6 +3594,8 @@ public static void main(String[] args) throws InterruptedException {
 如果对象虽然被多个线程访问，但没有竞争，这时偏向了线程 T1 的对象仍有机会重新偏向 T2，重偏向会重置对象 的 Thread ID 
 
 当撤销偏向锁阈值超过 20 次后，jvm 会这样觉得，我是不是偏向错了呢，于是会在给这些对象加锁时重新偏向至 加锁线程
+
+>   即发生20次之后会发生重新偏向
 
 ```java
 private static void test3() throws InterruptedException {
