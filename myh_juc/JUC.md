@@ -4300,7 +4300,7 @@ class GuardedObject {
 
 测试
 
-一个线程等待另一个线程的执行结果
+一个线程等待另一个线程的执行结果，这里是主线程等待新开的线程把数据放到 `guardedObject` 对象里面
 
 ```java
 @Override
@@ -5151,7 +5151,9 @@ t2.start();
 
 ##### **定位死锁** 
 
-检测死锁可以使用 jconsole工具，或者使用 jps 定位进程 id，再用 jstack 定位死锁：
+**检测死锁可以使用 jconsole工具，或者使用 jps 定位进程 id，再用 jstack 定位死锁：**
+
+或者直接用jconsole，图形化的看就行了
 
 ```sh
 cmd > jps
