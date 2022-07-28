@@ -4648,7 +4648,7 @@ public static void main(String[] args) throws InterruptedException {
 }
 ```
 
-某次运行结果
+某次运行结果，运行结果肯定是随机的，不过也能看出来原理
 
 ```java
 10:35:05.689 c.People [Thread-1] - 开始收信 id:3
