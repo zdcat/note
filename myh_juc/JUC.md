@@ -4300,7 +4300,7 @@ class GuardedObject {
 
 测试
 
-一个线程等待另一个线程的执行结果
+一个线程等待另一个线程的执行结果，这里是主线程等待新开的线程把数据放到 `guardedObject` 对象里面
 
 ```java
 @Override
@@ -5151,7 +5151,9 @@ t2.start();
 
 ##### **定位死锁** 
 
-检测死锁可以使用 jconsole工具，或者使用 jps 定位进程 id，再用 jstack 定位死锁：
+**检测死锁可以使用 jconsole工具，或者使用 jps 定位进程 id，再用 jstack 定位死锁：**
+
+或者直接用jconsole，图形化的看就行了
 
 ```sh
 cmd > jps
@@ -5580,6 +5582,8 @@ class Philosopher extends Thread {
 
 ReentrantLock 默认是不公平的
 
+> 你看线程上锁的时候上锁失败了不就去EntryList里面等着么，公平锁就是，谁先进的EntryList，谁就先上锁，非公平锁就是不管谁先进的EntryList，都是随机的
+
 ```java
 ReentrantLock lock = new ReentrantLock(false);
 lock.lock();
@@ -5647,7 +5651,11 @@ t481 running...
 强行插入 running... 
 ```
 
-公平锁一般没有必要，会降低并发度，后面分析原理时会讲解
+公平锁一般没有必要（一般不上公平锁），会降低并发度，后面分析原理时会讲解
+
+
+
+
 
 
 
