@@ -5578,6 +5578,8 @@ class Philosopher extends Thread {
 
 ReentrantLock 默认是不公平的
 
+> 你看线程上锁的时候上锁失败了不就去EntryList里面等着么，公平锁就是，谁先进的EntryList，谁就先上锁，非公平锁就是不管谁先进的EntryList，都是随机的
+
 ```java
 ReentrantLock lock = new ReentrantLock(false);
 lock.lock();
@@ -5645,7 +5647,11 @@ t481 running...
 强行插入 running... 
 ```
 
-公平锁一般没有必要，会降低并发度，后面分析原理时会讲解
+公平锁一般没有必要（一般不上公平锁），会降低并发度，后面分析原理时会讲解
+
+
+
+
 
 
 
