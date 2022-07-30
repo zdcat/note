@@ -5298,7 +5298,7 @@ reentrantLock.lock();
 try {
  // 临界区
 } finally {
- // 释放锁
+ // 释放锁，注意释放锁必须在finally代码块里面
  reentrantLock.unlock();
 }
 ```
@@ -5364,6 +5364,7 @@ Thread t1 = new Thread(() -> {
     log.debug("启动...");
     try {
         lock.lockInterruptibly();
+    // 注意被打断还是会抛出异常，肯定还是要用catch去接的
     } catch (InterruptedException e) {
         e.printStackTrace();
         log.debug("等锁的过程中被打断");
@@ -5453,6 +5454,7 @@ try {
 ReentrantLock lock = new ReentrantLock();
 Thread t1 = new Thread(() -> {
     log.debug("启动...");
+  	// 看能否获取锁，获取成功返回值就是true
     if (!lock.tryLock()) {
         log.debug("获取立刻失败，返回");
         return;
@@ -5488,6 +5490,7 @@ ReentrantLock lock = new ReentrantLock();
 Thread t1 = new Thread(() -> {
     log.debug("启动...");
     try {
+      	// 看1s内是否能获取成功
         if (!lock.tryLock(1, TimeUnit.SECONDS)) {
             log.debug("获取等待 1s 后失败，返回");
             return;
@@ -5558,6 +5561,7 @@ class Philosopher extends Thread {
                         }
                     }
                 } finally {
+                  	// 这里意思就是，如果获取不到左手的筷子，那么就会放弃左手的筷子
                     left.unlock();
                 }
             }
