@@ -5778,17 +5778,22 @@ public interface Condition {
 例子：
 
 ```java
+// 大锁
 static ReentrantLock lock = new ReentrantLock();
+// 创建两个条件变量（两个休息室）
 static Condition waitCigaretteQueue = lock.newCondition();
 static Condition waitbreakfastQueue = lock.newCondition();
+// 两个变量
 static volatile boolean hasCigrette = false;
 static volatile boolean hasBreakfast = false;
 public static void main(String[] args) {
     new Thread(() -> {
         try {
+          	// 仍然是用大锁上锁
             lock.lock();
             while (!hasCigrette) {
                 try {
+                  	// 没有烟就去没有烟的休息室
                     waitCigaretteQueue.await();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -5801,9 +5806,11 @@ public static void main(String[] args) {
     }).start();
     new Thread(() -> {
         try {
+          	// 仍然使用大锁上锁
             lock.lock();
             while (!hasBreakfast) {
                 try {
+                  	// 没有早饭就去没有早饭的休息室
                     waitbreakfastQueue.await();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -5824,6 +5831,7 @@ private static void sendCigarette() {
     try {
         log.debug("送烟来了");
         hasCigrette = true;
+      	// 烟来了之后在等烟的休息室去唤醒
         waitCigaretteQueue.signal();
     } finally {
         lock.unlock();
@@ -5834,6 +5842,7 @@ private static void sendBreakfast() {
     try {
         log.debug("送早餐来了");
         hasBreakfast = true;
+      	// 早饭来了在等早饭的休息室去唤醒
         waitbreakfastQueue.signal();
     } finally {
         lock.unlock();
@@ -5867,6 +5876,7 @@ private static void sendBreakfast() {
 static Object obj = new Object();
 // t2 运行标记， 代表 t2 是否执行过
 static boolean t2runed = false;
+
 public static void main(String[] args) {
     Thread t1 = new Thread(() -> {
         synchronized (obj) {
@@ -5906,7 +5916,7 @@ public static void main(String[] args) {
 - 第二，如果有些干扰线程错误地 notify 了 wait 线程，条件不满足时还要重新等待，使用了 while 循环来解决 此问题 
 - 最后，唤醒对象上的 wait 线程需要使用 notifyAll，因为『同步对象』上的等待线程可能不止一个 
 
-可以使用 LockSupport 类的 park 和 unpark 来简化上面的题目：
+可以使用 LockSupport 类的 park 和 unpark 来简化上面的题目：（因为park与unpark能专门处理线程的暂停与继续运行，就是那个干粮和旅人的原理）
 
 ```java
 Thread t1 = new Thread(() -> {
@@ -5917,7 +5927,7 @@ Thread t1 = new Thread(() -> {
 });
 Thread t2 = new Thread(() -> {
     System.out.println("2");
-    // 给线程 t1 发放『许可』（多次连续调用 unpark 只会发放一个『许可』）
+    // 给线程 t1 发放『许可』（多次连续调用 unpark 只会发放一个『许可』），注意2打印完了才给t1发放许可
     LockSupport.unpark(t1);
 });
 t1.start();
@@ -5938,6 +5948,7 @@ park 和 unpark 方法比较灵活，他俩谁先调用，谁后调用无所谓�
 
 ```java
 class SyncWaitNotify {
+  	// 这个flag的值去决定那个线程去执行，1是线程1执行，2是线程2执行，3是线程3执行
     private int flag;
     private int loopNumber;
     public SyncWaitNotify(int flag, int loopNumber) {
@@ -5947,6 +5958,7 @@ class SyncWaitNotify {
     public void print(int waitFlag, int nextFlag, String str) {
         for (int i = 0; i < loopNumber; i++) {
             synchronized (this) {
+              	// 如果是flag是1，那么此时只有线程1才会执行，其余同理
                 while (this.flag != waitFlag) {
                     try {
                         this.wait();
@@ -5966,12 +5978,15 @@ class SyncWaitNotify {
 ```java
 SyncWaitNotify syncWaitNotify = new SyncWaitNotify(1, 5);
 new Thread(() -> {
+  	// flag为1的时候会打印a，然后flag变成2
     syncWaitNotify.print(1, 2, "a");
 }).start();
 new Thread(() -> {
+  	// flag为2的时候会打印b，然后flag变成3
     syncWaitNotify.print(2, 3, "b");
 }).start();
 new Thread(() -> {
+  	// flag为3的时候会打印c，然后flag变成1
     syncWaitNotify.print(3, 1, "c");
 }).start();
 ```
