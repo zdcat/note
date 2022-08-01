@@ -6772,17 +6772,17 @@ volatile 的底层实现原理是内存屏障，Memory Barrier（Memory Fence）
 
 ##### 如何保证可见性
 
-- 写屏障（sfence）保证在该屏障之前的，对共享变量的改动，都同步到主存当中
+- **写屏障（sfence）保证在该屏障之前的（注意是之前的，这就说明只要你的写屏障的位置足够合适，就能使得重排序不会影响到运行的正确性），对共享变量的改动，都同步到主存当中**
 
 - ```java
   public void actor2(I_Result r) {
       num = 2;
-      ready = true; // ready 是 volatile 赋值带写屏障
+      ready = true; // ready 是 volatile 赋值带写屏障（注意这里先是num=2，然后才是ready=true，写屏障就保证了当ready=true的时候num一定是2）
       // 写屏障
   }
   ```
 
-- 而读屏障（lfence）保证在该屏障之后，对共享变量的读取，加载的是主存中最新数据
+- **而读屏障（lfence）保证在该屏障之后，对共享变量的读取，加载的是主存中最新数据**
 
 - ```java
   public void actor1(I_Result r) {
@@ -6802,7 +6802,7 @@ volatile 的底层实现原理是内存屏障，Memory Barrier（Memory Fence）
 
 ##### 如何保证有序性
 
-- 写屏障会确保指令重排序时，不会将写屏障之前的代码排在写屏障之后
+- **写屏障会确保指令重排序时（注意是之前的，这就说明只要你的写屏障的位置足够合适，就能使得重排序不会影响到运行的正确性），不会将写屏障之前的代码排在写屏障之后**
 
 - ```java
   public void actor2(I_Result r) {
@@ -6812,7 +6812,7 @@ volatile 的底层实现原理是内存屏障，Memory Barrier（Memory Fence）
   }
   ```
 
-- 读屏障会确保指令重排序时，不会将读屏障之后的代码排在读屏障之前
+- **读屏障会确保指令重排序时，不会将读屏障之后的代码排在读屏障之前**
 
 - ```java
   public void actor1(I_Result r) {
@@ -6830,7 +6830,7 @@ volatile 的底层实现原理是内存屏障，Memory Barrier（Memory Fence）
 
 还是那句话，不能解决指令交错： 
 
-- 写屏障仅仅是保证之后的读能够读到最新的结果，但不能保证读跑到它前面去 
+- 写屏障仅仅是保证之后的读能够读到最新的结果，但不能保证读跑到它前面去 （从这里看就可以防止指令重排序带来的影响，因为写屏障之前的代码不会跑到写屏障后面，这里的写屏障自然就是给volatile修饰的关键字的那里）
 - 而有序性的保证也只是保证了本线程内相关代码不被重排序
 
 ![image-20220306130731767](img\image-20220306130731767.png)
@@ -6846,10 +6846,10 @@ public final class Singleton {
     private Singleton() { }
     private static Singleton INSTANCE = null;
     public static Singleton getInstance() { 
-        if(INSTANCE == null) { // t2
+        if(INSTANCE == null) { // 这个if是为了防止new出之后再进入锁判断是否为null，省的在进入锁
             // 首次访问会同步，而之后的使用没有 synchronized
             synchronized(Singleton.class) {
-                if (INSTANCE == null) { // t1
+                if (INSTANCE == null) { // 这个if是为了防止首次同时进入多个线程
                     INSTANCE = new Singleton();
                 } 
             }
@@ -6909,6 +6909,8 @@ public final class Singleton {
 
 对 INSTANCE 使用 volatile 修饰即可，可以禁用指令重排，但要注意在 JDK 5 以上的版本的 volatile 才会真正有效
 
+> 简而言之就是指令重排序导致t1线程先给INSTANCE赋值，然后才执行的调用构造方法，如果t2趁t1还没有调用构造方法就去获取对象使用了，那结果就出错了
+
 
 
 ##### double-checked locking 解决
@@ -6916,7 +6918,9 @@ public final class Singleton {
 ```java
 public final class Singleton {
     private Singleton() { }
+    // 加了volatile防止指令重排序
     private static volatile Singleton INSTANCE = null;
+    
     public static Singleton getInstance() {
         // 实例没创建，才会进入内部的 synchronized代码块
         if (INSTANCE == null) { 
@@ -6946,6 +6950,7 @@ public final class Singleton {
 14: ifnonnull 27
 17: new #3 // class cn/itcast/n5/Singleton
 20: dup
+// 注意下面的写屏障就导致先执行的构造方法然后才执行的赋值操作，就能保证这个对象一定可以用
 21: invokespecial #4 // Method "<init>":()V
 24: putstatic #2 // Field INSTANCE:Lcn/itcast/n5/Singleton;
 // -------------------------------------> 加入对 INSTANCE 变量的写屏障
@@ -6972,6 +6977,8 @@ public final class Singleton {
 - 更底层是读写变量时使用 lock 指令来多核 CPU 之间的可见性与有序性
 
 ![image-20220307204740517](img\image-20220307204740517.png)
+
+这个图只是一种情况，t1执行完构造了，这时t2获取INSTANCE，然后t1又赋值，此时t2判断自然是不为空，然后返回就行
 
 
 
@@ -7109,6 +7116,8 @@ happens-before 规定了对共享变量的写操作对其它线程的读操作�
 
 希望 doInit() 方法仅被调用一次，下面的实现是否有问题，为什么？
 
+> 得加synchronized，毕竟volatile只能保证可见性和有序性，不能保证原子性
+
 ```java
 public class TestVolatile {
     volatile boolean initialized = false;
@@ -7144,7 +7153,7 @@ public class TestVolatile {
 public final class Singleton implements Serializable {
     // 问题3：为什么设置为私有? 是否能防止反射创建新的实例?(防止外部调用构造方法创建多个实例；不能)
     private Singleton() {}
-    // 问题4：这样初始化是否能保证单例对象创建时的线程安全?(能，线程安全性由类加载器保障)
+    // 问题4：这样初始化是否能保证单例对象创建时的线程安全?(能，线程安全性由类加载器保障，静态变量(类变量)的初始化由类加载器保证)
     private static final Singleton INSTANCE = new Singleton();
     // 问题5：为什么提供静态方法而不是直接将 INSTANCE 设置为 public, 说出你知道的理由(可以保证instance的安全性，也能方便实现一些附加逻辑)
     public static Singleton getInstance() {
@@ -7207,7 +7216,7 @@ public final class Singleton {
             return INSTANCE;
         }
         synchronized (Singleton.class) { 
-            // 问题3：为什么还要在这里加为空判断, 之前不是判断过了吗
+            // 问题3：为什么还要在这里加为空判断, 之前不是判断过了吗(为了防止第一次两个线程都走到11行之后两个线程都new一遍对象)
             if (INSTANCE != null) { // t2 
                 return INSTANCE;
             }
@@ -7220,16 +7229,16 @@ public final class Singleton {
 
 
 
-**实现5(内部类初始化)：**
+**实现5(内部类初始化，也是一种很好的初始化的方式)：**
 
 ```java
 public final class Singleton {
     private Singleton() { }
-    // 问题1：属于懒汉式还是饿汉式
+    // 问题1：属于懒汉式还是饿汉式（懒汉式）
     private static class LazyHolder {
         static final Singleton INSTANCE = new Singleton();
     }
-    // 问题2：在创建时是否有并发问题
+    // 问题2：在创建时是否有并发问题（没有并发问题，因为虚拟机会保证类的静态变量的初始化的线程安全）
     public static Singleton getInstance() {
         return LazyHolder.INSTANCE;
     }
