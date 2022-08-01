@@ -1381,6 +1381,11 @@ Two Phase Termination 在一个线程 T1 中如何“优雅”终止线程 T2？
 
 interrupt 可以打断正在执行的线程，无论这个线程是在 sleep，wait，还是正常运行
 
+- 正常运行情况下被打断，标记为true，然后料理后事
+- 睡眠、等待情况下被打断，睡眠、等待结束，抛出异常，标记仍是false，然后再catch块里设置打断标记为true，然后料理后事
+
+**注意打断标记是true就表明这个线程可以没了，可以料理后事了**
+
 ```java
 class TPTInterrupt {
     private Thread thread;
@@ -1396,7 +1401,7 @@ class TPTInterrupt {
                     Thread.sleep(1000);
                     log.debug("将结果保存");
                 } catch (InterruptedException e) {
-                  	// 睡眠被打断之后修改打断标记
+                  	// 睡眠被打断之后修改打断标记，重置打断标记为true
                     current.interrupt();
                 }
                 // 执行监控操作 
@@ -1447,7 +1452,9 @@ t.stop();
 class TPTVolatile {
     private Thread thread;
     private volatile boolean stop = false;
+    
     public void start(){
+        //以为这里开了个新线程，所以涉及到多个线程的可见性的问题了，所以给stop变量加上volatile
         thread = new Thread(() -> {
             while(true) {
                 Thread current = Thread.currentThread();
@@ -1467,6 +1474,7 @@ class TPTVolatile {
     }
     public void stop() {
         stop = true;
+        // 这里是为了打断睡眠时刻的线程，重要的还是给经过volatile修饰的stop变为true
         thread.interrupt();
     }
 }
@@ -6057,19 +6065,26 @@ as.start(aWaitSet);
 class SyncPark {
     private int loopNumber;
     private Thread[] threads;
+    
     public SyncPark(int loopNumber) {
         this.loopNumber = loopNumber;
     }
+    
     public void setThreads(Thread... threads) {
         this.threads = threads;
     }
+    
     public void print(String str) {
         for (int i = 0; i < loopNumber; i++) {
+			// 所有线程都直接暂停
             LockSupport.park();
             System.out.print(str);
+            // 线程执行完操作之后去叫醒下一个线程，这样线程就会轮流执行了 
             LockSupport.unpark(nextThread());
         }
     }
+    
+    // 获得到当前线程的下一个线程
     private Thread nextThread() {
         Thread current = Thread.currentThread();
         int index = 0;
@@ -6085,6 +6100,8 @@ class SyncPark {
             return threads[0];
         }
     }
+    
+    //因为所有线程都会被暂停，所以需要一个开启线程的操作，这里来开启第一个线程，第一个线程执行完后会开启第二个线程
     public void start() {
         for (Thread thread : threads) {
             thread.start();
@@ -6143,7 +6160,7 @@ syncPark.start();
 
 
 
-JMM 即 Java Memory Model，它定义了主存、工作内存抽象概念，底层对应着 CPU 寄存器、缓存、硬件内存、 CPU 指令优化等。 
+JMM 即 Java Memory Model，它定义了主存、工作内存抽象概念（主存就是共享资源存储的地方，所有线程都可以访问到，工作内存就是线程自己的区域，只有自己能看到），底层对应着 CPU 寄存器、缓存、硬件内存、 CPU 指令优化等。 
 
 
 
@@ -6156,7 +6173,7 @@ JMM的意义
 JMM 体现在以下几个方面 
 
 - 原子性 - 保证指令不会受到线程上下文切换的影响 
-- 可见性 - 保证指令不会受 cpu 缓存的影响 
+- 可见性 - 保证指令不会受 cpu 缓存的影响 （有的线程会一直读自己工作区域的内容，看不到主存的修改）
 - 有序性 - 保证指令不会受 cpu 指令并行优化的影响
 
 
@@ -6205,6 +6222,12 @@ volatile（易变关键字）
 
 它可以用来修饰成员变量和静态成员变量，他可以避免线程从自己的工作缓存中查找变量的值，必须到主存中获取 它的值，线程操作 volatile 变量都是直接操作主存
 
+**感觉volatile适合一个线程去修改，好多个线程去读，因为多个线程去修改可能会造成指令交错的情况，但是只有一个线程去修改时不会有指令交错的问题的，并且加了volatile能保证做的修改能让其他读的线程可以看到**
+
+如果是多个线程的修改看情况加锁
+
+
+
 
 
 #### 可见性 vs 原子性 
@@ -6220,10 +6243,10 @@ putstatic run // 线程 main 修改 run 为 false， 仅此一次
 getstatic run // 线程 t 获取 run false 
 ```
 
-比较一下之前我们将线程安全时举的例子：两个线程一个 i++ 一个 i-- ，只能保证看到最新值，不能解决指令交错
+比较一下之前我们将线程安全时举的例子：两个线程一个 i++ 一个 i-- ，**volatile 只能保证看到最新值，不能解决指令交错**
 
 ```sh
-// 假设i的初始值为0 
+// 假设i的初始值为0     
 getstatic i // 线程2-获取静态变量i的值 线程内i=0 
 getstatic i // 线程1-获取静态变量i的值 线程内i=0 
 iconst_1 // 线程1-准备常量1 
@@ -6278,6 +6301,8 @@ Two Phase Termination
 ![image-20220305211507893](img\image-20220305211507893.png)
 
 **利用 isInterrupted**
+
+> 这个例子的解释在上面的两阶段终止里面有
 
 interrupt 可以打断正在执行的线程，无论这个线程是在 sleep，wait，还是正常运行
 
@@ -6338,6 +6363,7 @@ t.stop();
 class TPTVolatile {
     private Thread thread;
     private volatile boolean stop = false;
+    
     public void start(){
         thread = new Thread(() -> {
             while(true) {
@@ -6357,6 +6383,7 @@ class TPTVolatile {
         thread.start();
     }
     public void stop() {
+        // stop经过volatile修饰，能保证多个线程都会被看到，不会出现可见性的问题
         stop = true;
         //让线程立即停止而不是等待sleep结束
         thread.interrupt();
@@ -6406,6 +6433,7 @@ public class MonitorService {
     private volatile boolean starting;
     public void start() {
         log.info("尝试启动监控线程...");
+        // synchronized尽可能包住的代码少一点
         synchronized (this) {
             if (starting) {
                 return;
@@ -6442,7 +6470,7 @@ public final class Singleton {
     
     public static synchronized Singleton getInstance() {
         if (INSTANCE != null) {
-            return INSTANCE;
+             return INSTANCE;
         }
         INSTANCE = new Singleton();
         return INSTANCE;
@@ -6504,13 +6532,13 @@ i = ...;
 
 **CPI** 
 
-有的指令需要更多的时钟周期时间，所以引出了 CPI （Cycles Per Instruction）指令平均时钟周期数 
+有的指令需要更多的时钟周期时间，所以引出了 CPI （Cycles Per Instruction）指令平均时钟周期数 ，**平均下来，一个指令的执行花掉多少个时钟周期**
 
 
 
 **IPC** 
 
-IPC（Instruction Per Clock Cycle） 即 CPI 的倒数，表示每个时钟周期能够运行的指令数 
+IPC（Instruction Per Clock Cycle） 即 CPI 的倒数，表示每个时钟周期能够运行的指令数 ，**一个时钟周期里面可以执行多少个指令（平均后的指令），CPI的倒数**
 
 
 
@@ -6564,7 +6592,9 @@ int b = a - 5; // 指令2
 
 ##### 支持流水线的处理器
 
-现代 CPU 支持**多级指令流水线**，例如支持同时执行 `取指令 - 指令译码 - 执行指令 - 内存访问 - 数据写回` 的处理 器，就可以称之为**五级指令流水线**。这时 CPU 可以在一个时钟周期内，同时运行五条指令的不同阶段（相当于一 条执行时间最长的复杂指令），IPC = 1，本质上，流水线技术并不能缩短单条指令的执行时间，但它变相地提高了 指令地吞吐率。
+现代 CPU 支持**多级指令流水线**，例如支持同时执行 `取指令 - 指令译码 - 执行指令 - 内存访问 - 数据写回` 的处理 器，就可以称之为**五级指令流水线**。这时 CPU 可以在一个时钟周期内，同时运行五条指令的不同阶段（相当于一 条执行时间最长的复杂指令），IPC = 1**（这一个时钟周期内，执行了5条指令的不同阶段，看正好这5个不同阶段能组合成一条完整的指令，所以看起来就是这一个时候周期内执行了一条“完整的指令”）**，本质上，流水线技术并不能缩短单条指令的执行时间，但它变相地提高了 指令地吞吐率。
+
+**所以说为了吞吐量的提高，会有多级指令流水线，所以导致原来从串行执行的指令会变成下图的执行方式，所以说指令重排序和组合来实现指令级并行**
 
 > **提示**： 
 >
