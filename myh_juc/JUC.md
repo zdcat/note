@@ -7511,7 +7511,7 @@ public void withdraw(Integer amount) {
 >
 > 其实 CAS 的底层是 lock cmpxchg 指令（X86 架构），在单核 CPU 和多核 CPU 下都能够保证【比较-交 换】的原子性。
 >
-> 在多核状态下，某个核执行到带 lock 的指令时，CPU 会让总线锁住，当这个核把此指令执行完毕，再 开启总线。这个过程中不会被线程的调度机制所打断，保证了多个线程对内存操作的准确性，是原子 的。
+> 在多核状态下，某个核执行到带 lock 的指令时，CPU 会让总线锁住，当这个核把此指令执行完毕，再 开启总线。这个过程中不会被线程的调度机制所打断，保证了多个线程对内存操作的准确性，是原子 的。（CAS操作保证原子性的原因）
 
 
 
@@ -7590,7 +7590,7 @@ CAS 必须借助 volatile 才能读取到共享变量的最新值来实现【比
 
 ##### CAS 的特点 
 
-结合 CAS 和 volatile 可以实现无锁并发，适用于线程数少、多核 CPU 的场景下。 
+结合 CAS 和 volatile 可以实现无锁并发，适用于线程数少、多核 CPU 的场景下。 **（因为如果线程多了，并且CAS本身也是不断的循环，这就必定的涉及到线程的上下文切换，耗费时间就长了）**
 
 - CAS 是基于乐观锁的思想：最乐观的估计，不怕别的线程来修改共享变量，就算改了也没关系，我吃亏点再 重试呗。 
 - synchronized 是基于悲观锁的思想：最悲观的估计，得防着其它线程来修改共享变量，我上了锁你们都别想 改，我改完了解开锁，你们才有机会。 
@@ -7711,13 +7711,19 @@ public interface DecimalAccount {
 ```java
 class DecimalAccountUnsafe implements DecimalAccount {
     BigDecimal balance;
+  
+  	// 初始化金额
     public DecimalAccountUnsafe(BigDecimal balance) {
         this.balance = balance;
     }
+  
+  	// 
     @Override
     public BigDecimal getBalance() {
         return balance;
     }
+  
+  	// 线程不安全的取款操作
     @Override
     public void withdraw(BigDecimal amount) {
         BigDecimal balance = this.getBalance();
@@ -7734,6 +7740,7 @@ class DecimalAccountUnsafe implements DecimalAccount {
 class DecimalAccountSafeLock implements DecimalAccount {
     private final Object lock = new Object();
     BigDecimal balance;
+  
     public DecimalAccountSafeLock(BigDecimal balance) {
         this.balance = balance;
     }
@@ -7741,6 +7748,8 @@ class DecimalAccountSafeLock implements DecimalAccount {
     public BigDecimal getBalance() {
         return balance;
     }
+  
+  	// 上锁然后取款肯定是没问题的
     @Override
     public void withdraw(BigDecimal amount) {
         synchronized (lock) {
@@ -7765,6 +7774,8 @@ class DecimalAccountSafeCas implements DecimalAccount {
     public BigDecimal getBalance() {
         return ref.get();
     }
+  
+  	// CAS实现的取款
     @Override
     public void withdraw(BigDecimal amount) {
         while (true) {
@@ -7788,9 +7799,11 @@ DecimalAccount.demo(new DecimalAccountSafeCas(new BigDecimal("10000")));
 
 运行结果
 
-```sh
+```java
 4310 cost: 425 ms 
+// 加锁实现成功
 0 cost: 285 ms 
+// CAS实现成功
 0 cost: 274 ms
 ```
 
@@ -7835,6 +7848,8 @@ private static void other() {
 ```
 
 主线程仅能判断出共享变量的值与最初值 A 是否相同，不能感知到这种从 A 改为 B 又 改回 A 的情况，如果主线程 希望： 
+
+>   常规的CAS操作只能做出原子性的改变 
 
 只要有其它线程【动过了】共享变量，那么自己的 cas 就算失败，这时，仅比较值是不够的，需要再加一个版本号
 
@@ -7981,10 +7996,12 @@ public class TestABAAtomicMarkableReference {
 // function 函数 一个参数一个结果 (参数)->结果 , BiFunction (参数1,参数2)->结果
 // consumer 消费者 一个参数没结果 (参数)->void, BiConsumer (参数1,参数2)->
 private static <T> void demo(
+  	// 总之下面4个都是函数式接口，调用的时候直接用lambda很快就能用
     Supplier<T> arraySupplier,
     Function<T, Integer> lengthFun,
     BiConsumer<T, Integer> putConsumer,
     Consumer<T> printConsumer ) {
+  
     List<Thread> ts = new ArrayList<>();
     T array = arraySupplier.get();
     int length = lengthFun.apply(array);
@@ -8010,6 +8027,10 @@ private static <T> void demo(
 
 
 
+>   这里可以看出来，泛型的使用一般都是提前写好 T ，然后调用的时候肯定是知道 T 是什么类型的，即你调用的时候 T 你肯定不会写 T 的，一定写的是具体的类， 因为写 T 的时候是你设计这个函数的功能的时候
+
+
+
 **不安全的数组**
 
 ```java
@@ -8025,6 +8046,7 @@ demo(
 
 ```sh
 [9870, 9862, 9774, 9697, 9683, 9678, 9679, 9668, 9680, 9698] 
+// 很明显，普通的整形数组并不能做到对数组元素的原子增加
 ```
 
 
@@ -8044,6 +8066,7 @@ demo(
 
 ```sh
 [10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000, 10000] 
+// 可以看到，使用原子数组可以达到对数组元素的原子增加
 ```
 
 
