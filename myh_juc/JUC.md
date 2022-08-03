@@ -8074,8 +8074,12 @@ demo(
 ## 6.6 字段更新器 
 
 - AtomicReferenceFieldUpdater // 域 字段 
+
 - AtomicIntegerFieldUpdater 
-- AtomicLongFieldUpdater 利用字段更新器，可以针对对象的某个域（Field）进行原子操作，只能配合 volatile 修饰的字段使用，否则会出现 异常
+
+- AtomicLongFieldUpdater 
+
+    利用字段更新器，可以针对对象的某个域（Field）进行原子操作，只能配合 volatile 修饰的字段使用，否则会出现 异常
 
 ```sh
 Exception in thread "main" java.lang.IllegalArgumentException: Must be volatile type
@@ -8088,8 +8092,10 @@ public class Test5 {
     private volatile int field;
     public static void main(String[] args) {
         AtomicIntegerFieldUpdater fieldUpdater =
+          	// 传入类型，以及域的名称
             AtomicIntegerFieldUpdater.newUpdater(Test5.class, "field");
         Test5 test5 = new Test5();
+      	// 还是传入 exp 和 next ，去做cas更改
         fieldUpdater.compareAndSet(test5, 0, 10);
         // 修改成功 field = 10
         System.out.println(test5.field);
@@ -8174,6 +8180,8 @@ for (int i = 0; i < 5; i++) {
 ```
 
 性能提升的原因很简单，就是在有竞争时，设置多个累加单元，Therad-0 累加 Cell[0]，而 Thread-1 累加 Cell[1]... 最后将结果汇总。这样它们在累加时操作的不同的 Cell 变量，因此减少了 CAS 重试失败，从而提高性 能。
+
+>   如果不用原子累加器，那么就像上面的场景，4个线程轮番操作这一个共享变量，虽然能达到原子性的操作（利用不断循环的cpu来判断exp 与 next），但是一旦多个线程去轮番执行，势必会造成CAS的更多的失败，导致cpu的更多的转动，效果肯定是不如原子累加器的多个线程操作多个累加单元的情况的，毕竟一个线程去操作一个累加单元肯定比多个线程操作一个累加单元效果好，因为多个线程会造成CAS重试失败的次数变多
 
 
 
