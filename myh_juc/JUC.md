@@ -9292,8 +9292,9 @@ class Pool {
     public Connection borrow() {
         while(true) {
             for (int i = 0; i < poolSize; i++) {
-                // 获取空闲连接
+                // 获取空闲连接，如果发现当前这个链接状态为空闲
                 if(states.get(i) == 0) {
+                    // 就把这个状态置为繁忙
                     if (states.compareAndSet(i, 0, 1)) {
                         log.debug("borrow {}", connections[i]);
                         return connections[i];
@@ -9316,6 +9317,7 @@ class Pool {
         for (int i = 0; i < poolSize; i++) {
             if (connections[i] == conn) {
                 states.set(i, 0);
+                // 归还一个链接之后，就唤醒所有因为没有链接阻塞的线程
                 synchronized (this) {
                     log.debug("free {}", conn);
                     this.notifyAll();
@@ -9325,6 +9327,8 @@ class Pool {
         }
     }
 }
+
+//可以自定义Connection
 class MockConnection implements Connection {
     // 实现略
 }
@@ -9334,6 +9338,7 @@ class MockConnection implements Connection {
 
 ```java
 Pool pool = new Pool(2);
+// 开启5个线程去获取链接
 for (int i = 0; i < 5; i++) {
     new Thread(() -> {
         Connection conn = pool.borrow();
@@ -9372,6 +9377,8 @@ public class TestFinal {
 }
 ```
 
+
+
 字节码
 
 ```sh
@@ -9384,7 +9391,12 @@ public class TestFinal {
 10: return
 ```
 
-发现 final 变量的赋值也会通过 putfield 指令来完成，同样在这条指令之后也会加入写屏障，这样对final变量的写入不会重排序到构造方法之外，保证在其它线程读到 它的值时不会出现为 0 的情况。普通变量不能保证这一点了。
+发现 final 变量的赋值也会通过 putfield 指令来完成，**同样在这条指令之后也会加入写屏障，这样对final变量的写入不会重排序到构造方法之外，保证在其它线程读到 它的值时不会出现为 0 的情况**。普通变量不能保证这一点了。
+
+> 别忘了volatile的两个作用：
+>
+> 1. 写屏障保证有序性，写屏障之前的代码不会重排序到写屏障之后
+> 2. 写屏障保证可见性，写屏障之前的数据更新都会刷新到主存里面
 
 
 
@@ -9443,11 +9455,14 @@ class UseFinal2 {
    L0
     LINENUMBER 31 L0
     GETSTATIC java/lang/System.out : Ljava/io/PrintStream;
+	// 加了final修饰之后就是直接压入10，如果不加final修饰就得加载TestFinal这个类了，字节码就是GETSTATIC去加载TestFinal这个类然后去获取A
+	// 肯定是BIPUSH比GETSTATIC快
     BIPUSH 10
     INVOKEVIRTUAL java/io/PrintStream.println (I)V
    L1
     LINENUMBER 32 L1
     GETSTATIC java/lang/System.out : Ljava/io/PrintStream;
+	// 加了final修饰之后比较大的数就是复制一份到自己的常量池然后从常量池获取，所以指令时LDC，不然还是GETSTATIC，同样肯定是LDC快
     LDC 32768
     INVOKEVIRTUAL java/io/PrintStream.println (I)V
    L2
@@ -9486,13 +9501,19 @@ class UseFinal2 {
 }
 ```
 
-可以看见，jvm对final变量的访问做出了优化：另一个类中的方法调用final变量是，不是从final变量所在类中获取（共享内存），而是直接复制一份到方法栈栈帧中的操作数栈中（工作内存），这样可以提升效率，是一种优化。
+可以看见，**jvm对final变量的访问做出了优化：另一个类中的方法调用final变量时，不是从final变量所在类中获取（共享内存），而是直接复制一份到方法栈栈帧中的操作数栈中（工作内存），这样可以提升效率，是一种优化。**
 
 总结：
 
-- 对于较小的static final变量：复制一份到操作数栈中
-- 对于较大的static final变量：复制一份到当前类的常量池中
-- 对于非静态final变量，优化同上。
+- **对于较小的static final变量：复制一份到操作数栈中**
+- **对于较大的static final变量：复制一份到当前类的常量池中（把数复制到自己的常量池里自己用）**
+- **对于非静态final变量，优化同上。**
+
+
+
+> 注意上面说的是成员变量哦，而且静态成员变量和非静态成员变量的final优化相同
+>
+> 所以说final修饰的成员变量可以加快访问速度
 
 
 
@@ -9500,11 +9521,13 @@ class UseFinal2 {
 
 **final关键字的好处：**
 
-（1）final关键字提高了性能。JVM和Java应用都会缓存final变量。
+（1）**final关键字提高了性能**。JVM和Java应用都会缓存final变量。
 
 （2）final变量可以安全的在多线程环境下进行共享，而不需要额外的同步开销。
 
 （3）使用final关键字，JVM会对方法、变量及类进行优化。
+
+**（4）使用final修饰成员变量，不管是静态的还是非静态的，都会加快别的类访问被final修饰的成员变量的访问速度**
 
 **关于final的重要知识点**
 
@@ -9603,7 +9626,7 @@ class BlockingQueue<T>{
                     if(nanoTime <= 0){
                         return null;
                     }
-                    //该方法返回的是剩余时间
+                    //该方法返回的是等待的剩余时间
                     nanoTime = emptyWaitSet.awaitNanos(nanoTime);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -9690,9 +9713,11 @@ class BlockingQueue<T>{
     public void tryPut(RejectPolicy<T> rejectPolicy,T task){
         lock.lock();
         try{
+            // 如果任务队列满了，就采取自定义的策略去处理
             if(queue.size() == capacity){
                 rejectPolicy.reject(this,task);
             }else{
+                // 
                 System.out.println("加入任务队列：" + task);
                 queue.addLast(task);
                 emptyWaitSet.signal();
