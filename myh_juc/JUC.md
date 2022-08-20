@@ -9267,7 +9267,7 @@ public static Long valueOf(long l) {
 
 
 
-##### 手动实现一个连接池
+##### 手动实现一个连接池（和线程池的实现思路很像）
 
 例如：一个线上商城应用，QPS 达到数千，如果每次都重新创建和关闭数据库连接，性能会受到极大影响。 这时 预先创建好一批连接，放入连接池。一次请求到达后，从连接池获取连接，使用完毕后再还回连接池，这样既节约 了连接的创建和关闭时间，也实现了连接的重用，不至于让庞大的连接数压垮数据库。
 
@@ -9341,12 +9341,14 @@ Pool pool = new Pool(2);
 // 开启5个线程去获取链接
 for (int i = 0; i < 5; i++) {
     new Thread(() -> {
+      	// 从连接池里面去拿一个连接用
         Connection conn = pool.borrow();
         try {
             Thread.sleep(new Random().nextInt(1000));
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+      	// 用完之后回归就好
         pool.free(conn);
     }).start();
 }
@@ -9356,7 +9358,7 @@ for (int i = 0; i < 5; i++) {
 
 - 连接的动态增长与收缩 
 - 连接保活（可用性检测） 
-- 等待超时处理 
+- 等待超时处理 （因为这里的实现采用的是不满足条件就一直阻塞的，没有超时处理）
 - 分布式 hash 
 
 对于关系型数据库，有比较成熟的连接池实现，例如c3p0, druid等 对于更通用的对象池，可以考虑使用apache commons pool，例如redis连接池可以参考jedis中关于连接池的实现
@@ -9583,7 +9585,7 @@ class UseFinal2 {
 
 
 
-#### 自定义线程池
+#### 自定义线程池(一个蛮好的例子)
 
 ![image-20220311170716250](img\image-20220311170716250.png)
 
@@ -9592,6 +9594,7 @@ class UseFinal2 {
 ```java
 @FunctionalInterface //拒绝策略
 interface RejectPolicy<T>{
+  	// 注意这里接受的是任务队列和任务对象
     void reject(BlockingQueue<T> queue,T task);
 }
 ```
@@ -9614,6 +9617,7 @@ class BlockingQueue<T>{
     public BlockingQueue(int capacity) {
         this.capacity = capacity;
     }
+  
     //超时阻塞获取
     public T poll(long timeout, TimeUnit unit){
         lock.lock();
@@ -9632,6 +9636,8 @@ class BlockingQueue<T>{
                     e.printStackTrace();
                 }
             }
+          
+          	// 到这里就是正常的获取
             T t = queue.pollFirst();
             fullWaitSet.signal();
             return t;
@@ -9639,6 +9645,7 @@ class BlockingQueue<T>{
             lock.unlock();
         }
     }
+  
     //阻塞获取
     public T take(){
         lock.lock();
@@ -9657,6 +9664,7 @@ class BlockingQueue<T>{
             lock.unlock();
         }
     }
+  
     //阻塞添加
     public void put(T t){
         lock.lock();
@@ -9669,6 +9677,8 @@ class BlockingQueue<T>{
                     e.printStackTrace();
                 }
             }
+          
+          	// 正常的插入
             System.out.println(Thread.currentThread().toString() + "加入任务队列:" + t.toString());
             queue.addLast(t);
             emptyWaitSet.signal();
@@ -9676,24 +9686,29 @@ class BlockingQueue<T>{
             lock.unlock();
         }
     }
-    //超时阻塞添加
+  
+    //超时阻塞添加，就是带了时限的put方法
     public boolean offer(T t,long timeout,TimeUnit timeUnit){
         lock.lock();
         try{
             long nanoTime = timeUnit.toNanos(timeout);
             while (queue.size() == capacity){
                 try {
+                  	// 如果等待的时间小于0，就说明已经等够了，直接返回加入失败
                     if(nanoTime <= 0){
                         System.out.println("等待超时，加入失败：" + t);
                         return false;
                     }
                     System.out.println(Thread.currentThread().toString() + "等待加入任务队列:" + t.toString());
+                  	// 方法的返回值是这一轮还需等待的时间
                     nanoTime = fullWaitSet.awaitNanos(nanoTime);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
-            System.out.println(Thread.currentThread().toString() + "加入任务队列:" + t.toString());
+            
+          	// 如果不用等待那就正常的插入
+          	System.out.println(Thread.currentThread().toString() + "加入任务队列:" + t.toString());
             queue.addLast(t);
             emptyWaitSet.signal();
             return true;
@@ -9701,6 +9716,7 @@ class BlockingQueue<T>{
             lock.unlock();
         }
     }
+  
     public int size(){
         lock.lock();
         try{
@@ -9709,7 +9725,9 @@ class BlockingQueue<T>{
             lock.unlock();
         }
     }
+  
     //从形参接收拒绝策略的put方法
+  	// 主要是传入的这个策略
     public void tryPut(RejectPolicy<T> rejectPolicy,T task){
         lock.lock();
         try{
@@ -9717,7 +9735,7 @@ class BlockingQueue<T>{
             if(queue.size() == capacity){
                 rejectPolicy.reject(this,task);
             }else{
-                // 
+                // 如果没有满，就正常的添加到任务队列就好了
                 System.out.println("加入任务队列：" + task);
                 queue.addLast(task);
                 emptyWaitSet.signal();
@@ -9741,24 +9759,31 @@ class ThreadPool{
     private RejectPolicy<Runnable> rejectPolicy;
     //构造方法
     public ThreadPool(int coreSize,long timeout,TimeUnit timeUnit,int queueCapacity,RejectPolicy<Runnable> rejectPolicy){
+      	// 接受工作的线程的个数
         this.coreSize = coreSize;
+      	// 接受等待时间（用在等待任务的时候）
         this.timeout = timeout;
+      	// 接受时间单位
         this.timeUnit = timeUnit;
+      	// 接受拒绝策略，拒绝策略定义了任务队列满的时候应该干的事情
         this.rejectPolicy = rejectPolicy;
+      	// 任务队列
         taskQue = new BlockingQueue<Runnable>(queueCapacity);
     }
-    //线程数
+    //线程数，真正工作的线程的数量
     private int coreSize;
     //任务超时时间
     private long timeout;
     //时间单元
     private TimeUnit timeUnit;
+  
     //线程池的执行方法
     public void execute(Runnable task){
         //当线程数大于等于coreSize的时候，将任务放入阻塞队列
         //当线程数小于coreSize的时候，新建一个Worker放入workers
         //注意workers类不是线程安全的， 需要加锁
         synchronized (workers){
+          	// 如果真正工作的线程个数超过了规定的线程个数（就说明当前这个任务是没人处理的），那么就把当前的任务先放到任务队列里面放着
             if(workers.size() >= coreSize){
 //                taskQue.put(task);
                 //死等
@@ -9768,6 +9793,7 @@ class ThreadPool{
                 //让调用者自己执行任务
                 taskQue.tryPut(rejectPolicy,task);
             }else {
+              	// 如果当前的真正工作的线程的个数未达到规定的线程个数，就去新建工作线程，即worker
                 Worker worker = new Worker(task);
                 System.out.println(Thread.currentThread().toString() + "新增worker:" + worker + ",task:" + task);
                 workers.add(worker);
@@ -9787,7 +9813,7 @@ class ThreadPool{
 
         @Override
         public void run() {
-            //巧妙的判断
+            //巧妙的判断，Worker是真正的工作的线程，这里的策略是执行完一个任务还会继续从任务队列里面拿任务，然后继续执行，直到拿不出任务之后才算执行完毕
             while(task != null || (task = taskQue.poll(timeout,timeUnit)) != null){
                 try{
                     System.out.println(Thread.currentThread().toString() + "正在执行:" + task);
@@ -9798,6 +9824,7 @@ class ThreadPool{
                     task = null;
                 }
             }
+          	// 退出循环后就是把这个worker删除了
             synchronized (workers){
                 System.out.println(Thread.currentThread().toString() + "worker被移除:" + this.toString());
                 workers.remove(this);
@@ -9812,6 +9839,7 @@ class ThreadPool{
 ```java
 public class ThreadPoolTest {
     public static void main(String[] args) {
+      	// 这里传入不同的表达式来选择不同的
         ThreadPool threadPool = new ThreadPool(1, 1000, TimeUnit.MILLISECONDS, 1, (queue,task)->{
                     //死等
 //                    queue.put(task);
