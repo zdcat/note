@@ -11772,7 +11772,7 @@ static final class NonfairSync extends Sync {
     // ...
 
     private final boolean parkAndCheckInterrupt() {
-        // 如果打断标记已经是 true, 则 park 会失效
+        // 如果打断标记已经是 true, 则 park 会失效，特殊的是，这里不会抛出异常，如果是sleep，wait被打断就会抛出异常，park不会抛出异常，只会结束park
         LockSupport.park(this);
         // interrupted 会清除打断标记
         return Thread.interrupted();
@@ -11822,6 +11822,14 @@ static final class NonfairSync extends Sync {
     }
 }
 ```
+
+也就是，假如一个线程正在阻塞队列里面阻塞（park），然后因为业务逻辑这个线程会被打断，然后这个线程从park恢复，然后调用 `Thread.interrupted()` ，然后会返回true，因为25行的if，所以30行的 `interrupted` 变量就会为true，然后继续for循环，当这个线程获得到锁的时候，最后会返回 `interrupted` 的值，然后到40行的if判断，就会返回自我进行打断。
+
+既体现了不可打断性，又保证了线程因为业务逻辑要求被打断而会被打断
+
+
+
+
 
 **可打断模式**
 
