@@ -11105,29 +11105,41 @@ if (tryRelease(arg)) {
 ##### **自定义同步器**
 
 ```java
+// 自定义的同步器肯定都是按照AQS这个模子里写的
 final class MySync extends AbstractQueuedSynchronizer {
+  	// 尝试获取锁
     @Override
+  	// acquires只是传过来的参数，一般是1，没啥别的意思
     protected boolean tryAcquire(int acquires) {
         if (acquires == 1){
+          	// 尝试把资源状态设置为1
             if (compareAndSetState(0, 1)) {
+              	// 设置独占
                 setExclusiveOwnerThread(Thread.currentThread());
                 return true;
             }
         }
         return false;
     }
+  
+  	// 尝试释放锁
     @Override
     protected boolean tryRelease(int acquires) {
         if(acquires == 1) {
+          	// 只有资源状态为1 的时候才会释放锁，为0肯定是出问题了
             if(getState() == 0) {
                 throw new IllegalMonitorStateException();
             }
+          	// 独占的线程为null，因为已经没有线程去独占了
             setExclusiveOwnerThread(null);
+          	// 资源状态设置成0，注意要先设置独占线程为null再设置资源状态为0，因为重排序
             setState(0);
             return true;
         }
         return false;
     }
+  
+  	// 新建条件变量
     protected Condition newCondition() {
         return new ConditionObject();
     }
@@ -11150,16 +11162,19 @@ class MyLock implements Lock {
     @Override
     // 尝试，不成功，进入等待队列
     public void lock() {
+      	// 别忘了acquire方法有3步，不成功的话直接就进入队列阻塞了
         sync.acquire(1);
     }
     @Override
     // 尝试，不成功，进入等待队列，可打断
-    public void lockInterruptibly() throws InterruptedException {
+    public void lockInterruptibly() throws InterruptedException {	 
+      	// 这里自然就是可打断的acquire了
         sync.acquireInterruptibly(1);
     }
     @Override
     // 尝试一次，不成功返回，不进入队列
     public boolean tryLock() {
+      	// 只是尝试一次就是tryAcquire
         return sync.tryAcquire(1);
     }
     @Override
@@ -11170,6 +11185,7 @@ class MyLock implements Lock {
     @Override
     // 释放锁
     public void unlock() {
+      	// release同acquire，也是一个大方法（里面有好多个步骤）
         sync.release(1);
     }
     @Override
