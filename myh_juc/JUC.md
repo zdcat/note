@@ -3980,7 +3980,7 @@ notifyAll 的结果
 
 
 
-#### step 1
+#### step 1 （纯属垃圾不推荐看懂）
 
 ```java
 static final Object room = new Object();
@@ -4047,7 +4047,9 @@ new Thread(() -> {
 
 
 
-#### step 2 
+#### step 2
+
+> 给小南线程加了 wait 和 notify 来确保送烟的实现
 
 思考下面的实现行吗，为什么？
 
@@ -4092,6 +4094,8 @@ new Thread(() -> {
 
 
 #### step 3
+
+> notify 唤醒了错误的线程
 
 ```java
 new Thread(() -> {
