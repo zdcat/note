@@ -210,3 +210,109 @@ class Solution {
 }
 ```
 
+
+
+
+
+# 50. pow（x, n）
+
+## 题意
+
+实现x的n次方
+
+
+
+## 递归方式，自顶向下的递归
+
+计算 `pow(x,n)可以先计算pow(x,n/2)`
+
+```
+// 假如n是奇数
+pow(x, n) = pow(x, n) * pow(x, n) * x
+// 如果n是偶数
+pow(x, n) = pow(x, n) * pow(x, n)
+```
+
+这样看，递归关系就出来的很明显了
+
+```java
+class Solution {
+    public double myPow(double x, int n) {
+        long N = n;
+        if (N == 0) return 1;
+        // 注意如果指数是负数，只需要最后取个倒数就好了
+        return N > 0 ? dfs(x, N) : 1.0 / dfs(x, -N);
+    }
+
+    private double dfs(double x, long n) {
+        if (n == 0) return 1;
+        if (n == 1) return x;
+
+        // 先计算x的n/2次方
+        double y = dfs(x, n / 2);
+        // 再根据n的奇偶性去向下递归就好了
+        if (n % 2 == 1) {
+            return y * y * x;
+        } else {
+            return y * y;
+        }
+    }
+}
+```
+
+虽然这样可以解决问题，但毕竟是递归，还是有爆栈的风险，所以用迭代也可以，就是二进制的方法
+
+
+
+## 迭代
+
+说起来是迭代，但是看下来感觉更像是巧合？
+
+比如 
+$$
+x->x^{2}->x^{4}->x^{9}->x^{19}->x^{38}->x^{77}
+$$
+![image-20230212235946893](img/image-20230212235946893.png)
+
+![image-20230213000007326](img/image-20230213000007326.png)
+
+
+
+其实也好理解
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
