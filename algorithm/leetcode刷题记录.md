@@ -1,3 +1,251 @@
+
+
+
+
+
+
+# 92. 反转链表的left到right
+
+## 题意
+
+给你单链表的头指针 `head` 和两个整数 `left` 和 `right` ，其中 `left <= right` 。请你反转从位置 `left` 到位置 `right` 的链表节点，返回 **反转后的链表** 。
+
+![img](img/rev2ex2.jpg)
+
+```
+输入：head = [1,2,3,4,5], left = 2, right = 4
+输出：[1,4,3,2,5]
+```
+
+
+
+```
+输入：head = [5], left = 1, right = 1
+输出：[5]
+```
+
+
+
+## 递归
+
+其实明白了 `206反转链表` 和 `206.1反转链表的前N个节点` ，（最主要还是明白反转链表的递归逻辑）之后这个问题可以套用API去解决
+
+这道题能看出来索引是从1开始记的，所以当left为1的时候，那么这道题就转换成了 `反转链表的前right个节点` 
+
+递归函数
+
+```java
+ListNode reverseBetween(ListNode head, int left, int right);
+```
+
+- 反转以head为头结点的链表的left到right区间，并且返回新的链表的头结点
+
+我们要明白，要反转的是[left...right]这个区间的节点，所以我们可以先想办法找到第left个节点，然后问题就又转换成了 `反转链表的前right个节点` ，而且这个找的过程也必须要用递归去找，再配合设计的递归函数
+
+```java
+
+class Solution {
+	// 反转前N个节点用到的successor指针
+    ListNode successor = null;
+
+    // 反转链表的[left...right]区间的节点，并且返回头结点
+    public ListNode reverseBetween(ListNode head, int left, int right) {
+        // 如果区间从索引1开始，问题就转换成了反转链表的前right个节点
+        if (left == 1) {
+            return reverseN(head, right);
+        }
+
+        // 因为返回的是反转区间节点之后的新链表的头结点，所以直接用head.next去接受就好了
+        // 为什么新递归传入的是head.next，left-1，right-1呢？
+        // 因为从head开始数是left和right，如果是以head.next开始数就是left-1和right-1，同理head.next.next对应的就是left-2和right-2
+        // 你可以发现这些对应在原链表里面其实是相同的[left...right]，只是起点和偏移量不同罢了，但是表示的区间都相同
+        head.next = reverseBetween(head.next, left - 1, right - 1);
+        return head;
+    }
+
+    // 反转链表的前N个节点，这里不赘述了，206.1里面有
+    private ListNode reverseN(ListNode head, int n) {
+        if (n == 1) {
+            successor = head.next;
+            return head;
+        }
+
+        ListNode last = reverseN(head.next, n - 1);
+        head.next.next = head;
+        head.next = successor;
+
+        return last;
+    }
+}
+```
+
+
+
+
+
+# 206. 反转链表
+
+## 题意
+
+给你单链表的头节点 `head` ，请你反转链表，并返回反转后的链表。
+
+![img](img/rev1ex1.jpg)
+
+```
+输入：head = [1,2,3,4,5]
+输出：[5,4,3,2,1]
+```
+
+![img](img/rev1ex2.jpg)
+
+```
+输入：head = [1,2]
+输出：[2,1]
+```
+
+
+
+## 迭代
+
+取一个pre和一个cur，cur表示当前节点，pre表示在**原链表中**的当前节点的上一个节点，对于每一个节点cur，都先保存cur的下一个节点 `temp = cur.next` ，然后让  `cur.next = pre`  ，即让cur指向上一个节点pre，然后让cur和pre分别向前移动一个
+
+```java
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        ListNode pre = null;
+        // cur从头开始
+        ListNode cur = head;
+
+        while (cur != null) {
+            // 先保存cur的下一个
+            ListNode temp = cur.next;
+            // 让cur的下一个指向原链表中的上一个节点，达到反转的效果
+            cur.next = pre;
+            
+            // 让pre和cur各自后移一步
+            pre = cur;
+            cur = temp;
+        }
+        
+        return pre;
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+## 递归
+
+递归的做法一定要明确递归函数的作用，而且不要尝试用脑子去想递归的压栈
+
+这里的递归函数的意义是
+
+```java
+public ListNode reverseList(ListNode head)
+```
+
+- 传入的是链表的头结点head
+- 返回的是将以 head为头结点的链表 已经 反转的新链表
+
+
+
+所以对于每一个cur，先调用 `dfs(cur.head)` ，现在你手里的就是cur和 将以cur.head为头的反转的链表的头结点last（实际上就是以head为头的末尾结点）
+
+![img](img/3.jpg)
+
+但是别忘了head此时还指向着原链表的第二个，所以让第二个指向第一个就好
+
+![img](img/4.jpg)
+
+因为此时cur成为了最后一个节点，所以让cur指向null就可以了
+
+![img](img/5.jpg)
+
+```java
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        return dfs(head);
+    }
+
+    // 返回将以cur为头节点的链表反转后的新链表的头结点
+    private ListNode dfs(ListNode cur) {
+        if (cur == null || cur.next == null) {
+            return cur;
+        }
+
+        // 拿到将cur的下一个的反转后的链表这个新链表的头结点
+        ListNode last = dfs(cur.next);
+        // 别忘了虽然一cur.next为头的节点反转了，但是cur和cur.next的位置并没有改变
+        // 所以让cur.next指向cur，达到反转的效果
+        cur.next.next = cur;
+        // 此时cur为末尾，所以让cur指向null
+        cur.next = null;
+
+        return last;
+    }
+}
+```
+
+
+
+# 206. 1反转链表的前N个节点
+
+在206的基础上做了变化，不是像206那样反转链表的全部，而是反转前N个节点
+
+![img](img/6.jpg)
+
+需要注意当没有dummyHead节点的时候，链表的索引大部分时候都是从1开始的，这也就说明从head节点到第N个节点只需要走N-1步就可以了
+
+此时的递归函数
+
+```java
+ListNode reverseN(ListNode head, int N)
+```
+
+- 将以head为头结点的链表的前N个元素反转，并且返回新的头结点
+
+可以发现逻辑和反转链表的逻辑很像，只不过当走到第N个节点的时候需要保留第N+1个节点的后继successor，然后让原链表的头结点head的下一个指向successor，对于前N个节点，我们采用反转链表同样的逻辑去反转。**注意，前N个节点的反转逻辑和全部的反转逻辑基本相同**
+
+
+
+```java
+ListNode successor = null; // 后驱节点
+
+// 反转以 head 为起点的 n 个节点，返回新的头结点
+ListNode reverseN(ListNode head, int n) {
+    if (n == 1) {
+        // 记录第 n + 1 个节点
+        successor = head.next;
+        return head;
+    }
+    // 以 head.next 为起点，需要反转前 n - 1 个节点
+    ListNode last = reverseN(head.next, n - 1);
+
+    head.next.next = head;
+    // 让反转之后的 head 节点和后面的节点连起来
+    head.next = successor;
+    return last;
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
 # [560. 和为 K 的子数组](https://leetcode.cn/problems/subarray-sum-equals-k/)
 
 ## 题意
@@ -19,41 +267,31 @@
 ## 二重循环
 
 ```java
+
 class Solution {
-    int ans = 0;
-
-    public int subarraySum(int[] nums, int target) {
+    public int subarraySum(int[] nums, int k) {
+        int ans = 0;
         int len = nums.length;
-
-      	// i遍历每一个终点
+        
+		// 遍历每一个起点
         for (int i = 0; i < len; i++) {
             int sum = 0;
-          	// j从i的位置倒着寻找连续和
-            for (int j = i; j >= 0; j--) {
+            
+            // 从起点开始往后加
+            for (int j = i; j < len; j++) {
                 sum += nums[j];
-
-                if (sum == target) {
+                // 如果发现当前连续和已经是k了，那就记录加一
+                if (sum == k){
                     ans++;
                 }
             }
         }
-
         return ans;
     }
 }
 ```
 
-用 `i` 去遍历每一个结尾， `j` 从 `i` 的位置开始倒着往前记录sum
-
-注意：这里是倒着记录 `sum` 的，这样的好处就可以发现当 `nums[i]` 就是 `target` 的情况
-
-比如现在 `nums` 是 `1,2,3` ， `k`  是 `3`
-
-假如我们从前往后记录总和，   `1,2,3` 分别对应的是 `1,3,6` ，其中那个 `3` 表示 `nums[0]+nums[1]=3` ，这个虽然等于 `k` 了，但是却不是我们以 `nums[2]` 为末尾的时候想要的结果， `nums[0]+nums[1]=3` 应该是以 `nums[1]` 为结尾的时候的结果，以 `nums[2]` 为末尾时想要的结果应该是 `nums[2]=3` ，即 `nums[2...2]这个区间内`
-
-但是假如我们从后往前记录总和， `1,2,3`  分别对应的是 `3,5,6` ，这时候的 `3` 对应的其实就是 `nums[2...2]` 的和，而且 `nums[0...2]` 的总和 `6` 也得到了了体现，这是我们采用从后往前记录的原因
-
-
+很简单，这样不用三重循环。
 
 
 
@@ -264,7 +502,7 @@ class Solution {
 
 
 
-## 迭代
+## 迭代（快速幂）
 
 说起来是迭代，但是看下来感觉更像是巧合？
 
@@ -280,9 +518,44 @@ $$
 
 其实也好理解
 
+比如x的77次为例子，
 
+- x的38次平方到了x的76次，再乘一个x到77次
+- x的9次平方到了x的18次，再乘一个x到19次，那么乘的这个x，到最后的77次这个过程中，先平放一次到x^38，再平方一次到x^76，（注意不用管其他的x，单纯的只看到从x^18到x^19的x的变化），这个x最后会变成x^4
+- x^4到x^9乘的那个x，在整个过程中最后会变成x^8
+- 最开始的那个x最后会变成x^64
 
+也就是说，x^77 本质上是由最开始的那个x不断的去平方，再乘上中间每个单独乘的x到最后的变化（比如x^ 9到x^ 19的乘的那个x最后会变成x^ 4），就是最后的结果：x^64 * x^4 * x^8 * x^1 = x^77,
+而正好77的二进制是1001101，正好是第0位，第2位，第3位，第6位都是1，对应的二进制位数的值是1,4,8,64 ，再加上前面发现的规律 x^64 * x^4 * x^8 * x^1 = x^77。
 
+于是思路就出来了，拿到n这个数的二进制，然后去循环，每次都让 `x*=x` ，碰到为1的位，就让结果乘起来
+
+```java
+class Solution {
+    public double myPow(double x, int n) {
+        long N = n;
+        if (n == 0) return 1;
+        return N > 0 ? getValue(x, N) : 1 / getValue(x, -N);
+    }
+
+    // 迭代的方式
+    private double getValue(double x, long n) {
+        double ans = 1;
+        // 注意看总结，要明白每一个1位上乘的是x的几次方，从左往右应该是x,x^2,x^4,x^8，，，所以下面是temp自乘
+        double temp = x;
+        while (n > 0) {
+            if (n % 2 == 1) {
+                ans *= temp;
+            }
+
+            // 每次都让temp的指数翻倍（也就是让自己变为自己的平方倍）
+            temp *= temp;
+            n /= 2;
+        }
+        return ans;
+    }
+}
+```
 
 
 
