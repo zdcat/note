@@ -2,6 +2,208 @@
 
 
 
+# 160. 相交链表
+
+## 题意
+
+给你两个单链表的头节点 `headA` 和 `headB` ，请你找出并返回两个单链表相交的起始节点。如果两个链表不存在相交节点，返回 `null` 。
+
+图示两个链表在节点 `c1` 开始相交**：**
+
+![img](img/160_statement.png)
+
+
+
+
+
+![img](img/160_example_1_1.png)
+
+
+
+```
+输入：intersectVal = 8, listA = [4,1,8,4,5], listB = [5,6,1,8,4,5], skipA = 2, skipB = 3
+输出：Intersected at '8'
+解释：相交节点的值为 8 （注意，如果两个链表相交则不能为 0）。
+从各自的表头开始算起，链表 A 为 [4,1,8,4,5]，链表 B 为 [5,6,1,8,4,5]。
+在 A 中，相交节点前有 2 个节点；在 B 中，相交节点前有 3 个节点。
+— 请注意相交节点的值不为 1，因为在链表 A 和链表 B 之中值为 1 的节点 (A 中第二个节点和 B 中第三个节点) 是不同的节点。换句话说，它们在内存中指向两个不同的位置，而链表 A 和链表 B 中值为 8 的节点 (A 中第三个节点，B 中第四个节点) 在内存中指向相同的位置。
+```
+
+
+
+
+
+![img](img/160_example_2.png)
+
+
+
+```java
+输入：intersectVal = 2, listA = [1,9,1,2,4], listB = [3,2,4], skipA = 3, skipB = 1
+输出：Intersected at '2'
+解释：相交节点的值为 2 （注意，如果两个链表相交则不能为 0）。
+从各自的表头开始算起，链表 A 为 [1,9,1,2,4]，链表 B 为 [3,2,4]。
+在 A 中，相交节点前有 3 个节点；在 B 中，相交节点前有 1 个节点。
+```
+
+
+
+
+
+## 哈希表
+
+用哈希表set存下链表A的全部节点，然后遍历链表B，对于链表B的每一个节点都进行在set里面进行一个查询，第一个被查到的就是公共节点
+
+**别忘了哈希正常时间复杂度就是O(1)，极端下是O(N)，当超过阈值的时候会转换成红黑树，变成O(log N)，因为HashSet本质就是调用了HashMap**
+
+```java
+import java.util.HashSet;
+
+public class Solution {
+    public ListNode getIntersectionNode(ListNode headA, ListNode headB) {
+        ListNode p = headA;
+        HashSet<ListNode> set = new HashSet<>();
+
+        // 把headA这个链表的节点全部放到set里
+        while (p != null) {
+            set.add(p);
+            p = p.next;
+        }
+
+        p = headB;
+        while (p != null) {
+            if (set.contains(p)) {
+                return p;
+            }
+            p = p.next;
+        }
+        
+        return null;
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+# 剑指 Offer 47. 礼物的最大价值
+
+## 题意
+
+在一个 m*n 的棋盘的每一格都放有一个礼物，每个礼物都有一定的价值（价值大于 0）。你可以从棋盘的左上角开始拿格子里的礼物，并每次向右或者向下移动一格、直到到达棋盘的右下角。给定一个棋盘及其上面的礼物的价值，请计算你最多能拿到多少价值的礼物？
+
+```java
+输入: 
+[
+  [1,3,1],
+  [1,5,1],
+  [4,2,1]
+]
+输出: 12
+解释: 路径 1→3→5→2→1 可以拿到最多价值的礼物
+```
+
+
+
+## dfs（超时）
+
+因为对于每一个位置，都只能向右或者向下，不存在回溯的问题，所以只需要对于每一个位置，都进行向右和向下递归就行，递归到终点统计路上的值就行
+
+```java
+class Solution {
+    private int ans = 0;
+    // m是行，n是列
+    private int m = 0;
+    private int n = 0;
+
+    public int maxValue(int[][] grid) {
+        // m和n赋初始值
+        m = grid.length;
+        if (m == 0) {
+            return ans;
+        }
+        n = grid[0].length;、
+            
+        dfs(grid, 0, 0, 0);
+        
+        return ans;
+    }
+
+    private void dfs(int[][] grid, int temp, int i, int j) {
+        // 判断索引是否越界
+        if (i >= m || j >= n) {
+            return;
+        }
+
+        // 如果抵达终点
+        if (i == m - 1 && j == n - 1) {
+            ans = Math.max(ans, temp + grid[i][j]);
+            return;
+        }
+
+        // 更新路径上的值
+        temp += grid[i][j];
+        
+        // 分别向右和向下递归
+        dfs(grid, temp, i + 1, j);
+        dfs(grid, temp, i, j + 1);
+    }
+}
+```
+
+
+
+## dp
+
+同样的，因为只能向右或者向下走，所以走到任意一个位置（i，j），只能有两个方向来，要么从（i-1，j）这个位置来，要么从（i，j-1）这个位置来，那么要获得最大值，只需要看看从（i-1，j）这个方向来的值大还是从（i，j-1）这个方向来得值大，显然转移方程是
+
+```java
+dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]) + grid[i][j];
+```
+
+而且因为只能往下或者往右走，那么第一列的所有位置 `[0...m-1][0]`，都只能是从上往下的走，那么第一行的 `[0][0...n-1]`所有位置也同理只能从左往右的走，只有 `[1...m-1][1...n-1]` 这个范围的位置才考虑从上来还是从下来
+
+```java
+class Solution {
+    private int m = 0;
+    private int n = 0;
+
+    public int maxValue(int[][] grid) {
+        m = grid.length;
+        if (m == 0) {
+            return 0;
+        }
+        n = grid[0].length;
+        
+        int[][] dp = new int[m][n];
+        dp[0][0] = grid[0][0];
+        // 给第一列的所有位置赋值
+        for (int i = 1; i < m; i++) dp[i][0] = dp[i - 1][0] + grid[i][0];
+        // 给第一行的所有位置赋值
+        for (int j = 1; j < n; j++) dp[0][j] = dp[0][j - 1] + grid[0][j];
+
+
+        // dp
+        for (int i = 1; i < m; i++) {
+            for (int j = 1; j < n; j++) {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]) + grid[i][j];
+            }
+        }
+
+        return dp[m - 1][n - 1];
+    }
+
+}
+```
+
+  
+
+
+
 
 
 # 92. 反转链表的left到right
