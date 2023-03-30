@@ -941,11 +941,17 @@ Archive ：不支 持 B-tree、Hash、Full-text 等索引；
 
 ### 1.2 创建索引
 
-MySQL支持多种方法在单个或多个列上创建索引：在创建表的定义语句 CREATE TABLE 中指定索引列，使用 ALTER TABLE 语句在存在的表上创建索引，或者使用 CREATE INDEX 语句在已存在的表上添加索引。
+MySQL支持多种方法在单个或多个列上创建索引：
+
+- 在创建表的定义语句 CREATE TABLE 中指定索引列，
+- 使用 ALTER TABLE 语句在存在的表上创建索引，
+- 或者使用 CREATE INDEX 语句在已存在的表上添加索引。
+
+
 
 #### 1. 创建表的时候创建索引
 
-使用CREATE TABLE创建表时，除了可以定义列的数据类型外，还可以定义主键约束、外键约束或者唯一性约束，而不论创建哪种约束，在定义约束的同时相当于在指定列上创建了一个索引。
+使用CREATE TABLE创建表时，除了可以定义列的数据类型外，还可以**定义主键约束、外键约束或者唯一性约束**，而不论创建哪种约束，在定义约束的同时相当于在指定列上创建了一个索引。
 
 举例：
 
@@ -1206,6 +1212,10 @@ DROP INDEX index_name ON table_name;
 
 > 提示: 删除表中的列时，如果要删除的列为索引的组成部分，则该列也会从索引中删除。如果组成索引的所有列都被删除，则整个索引将被删除。
 
+<font color='red'>注意，唯一索引和唯一约束是相互存在的，比如给一个字段添加唯一约束，那么就会自动创建唯一索引，同理给一个字段创建唯一索引，就会自动添加唯一约束，在此之上就会有个新问题，如果一个唯一字段被添加了AUTO_INCREMENT自增约束之后，唯一索引就不可删除，因为自增约束依赖于唯一约束和主键约束，假如你要删除被自增约束修饰的唯一索引，你把唯一索引删除了，自增约束怎么办呢？ （感觉是个好离谱的设计，一起跟着没了不就行了，但是这样会报错）</font>
+
+
+
 ## 2. MySQL8.0索引新特性
 
 ### 2.1 支持降序索引
@@ -1256,11 +1266,18 @@ CALL ts_insert();
 
 ```mysql
 EXPLAIN SELECT * FROM ts1 ORDER BY a, b DESC LIMIT 5;
+# 这里出现了文件排序
 ```
 
 在MySQL 8.0版本中查看数据表 ts1 的执行计划。
 
+```sql
+# 这里没有出现文件排序，所以8.0效率要高
+```
+
 从结果可以看出，修改后MySQL 5.7 的执行计划要明显好于MySQL 8.0。
+
+
 
 ### 2.2 隐藏索引
 
@@ -2945,14 +2962,15 @@ DESC SELECT * FROM user_partitions WHERE id>200;
   ```
 
   <img src="MySQL索引及调优篇.assets/image-20220630180123913.png" alt="image-20220630180123913" style="float:left;" />
-
-+ `index_subquery`
-
-  `index_subquery` 与 `unique_subquery` 类似，只不过访问子查询中的表时使用的是普通的索引，比如这样：
-
-  ```mysql
-  mysql> EXPLAIN SELECT * FROM s1 WHERE common_field IN (SELECT key3 FROM s2 where s1.key1 = s2.key1) OR key3 = 'a';
-  ```
+  
+  + `index_subquery`
+  
+    `index_subquery` 与 `unique_subquery` 类似，只不过访问子查询中的表时使用的是普通的索引，比如这样：
+  
+    ```mysql
+    mysql> EXPLAIN SELECT * FROM s1 WHERE common_field IN (SELECT key3 FROM s2 where s1.key1 = s2.key1) OR key3 = 'a';
+    ```
+  
 
 ![image-20220703214407225](MySQL索引及调优篇.assets/image-20220703214407225.png)
 
@@ -4327,6 +4345,18 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM student WHERE age IS NOT NULL;
 >
 > 扩展：同理，在查询中使用`not like`也无法使用索引，导致全表扫描。
 
+
+
+### 2.85 （注意2.7和2.8讲的不对）
+
+<font color='red'>不等于和is null和is not null和索引的使用无关，真正来说是否使用索引是需要看执行器怎么选择的，假如说执行器用了索引的字段的过滤条件是不等于，而且此时用索引进行回表（很明显这里说的是非聚簇索引）的代价很大，这时就会选择不走索引，这和是否是不等于和null和is not null没有关系，康师傅讲的不对</font>
+
+<font color='red'>其实也好理解为什么2.8康师傅说is null会用索引，is not null不会用索引，因为正常情况下，一个字段为null的情况不多，即这一个字段为null的行数不多，那么is null的情况也就不多，这时候自然可以用索引查出来不多的情况，即回表的次数少，但是is not null的情况多，就会产生多次回表，反而某些情况is not null 进行多次回表可能会出现不如不用索引的效果好的情况</font>
+
+
+
+
+
 ### 2.9 like以通配符%开头索引失效
 
 在使用LIKE关键字进行查询的查询语句中，如果匹配字符串的第一个字符为'%'，索引就不会起作用。只有'%'不在第一个位置，索引才会起作用。
@@ -4498,6 +4528,8 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM `type` LEFT JOIN book ON type.card = book.car
 
 ![image-20220705161515545](MySQL索引及调优篇.assets/image-20220705161515545.png)
 
+<font color='red'>因为左外连接对驱动表是有强制要求的，所以一般左面的表是驱动表（会有被优化为内连接的情况，所以不是一定的左边是驱动表），被驱动表有索引那是最好的了，因为被驱动表有索引就会找得快，注意在两表链接字段一定要字段的类型相同，不然会发生索引失效的情况</font>
+
 ### 3.3 采用内连接
 
 ```mysql
@@ -4513,6 +4545,8 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM type INNER JOIN book ON type.card=book.card;
 
 ![image-20220705161602362](MySQL索引及调优篇.assets/image-20220705161602362.png)
 
+<font color='red'>因为两个表此时都没有索引，所以结果没什么</font>
+
 添加索引优化
 
 ```mysql
@@ -4522,12 +4556,16 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM type INNER JOIN book ON type.card=book.card;
 
 ![image-20220705161746184](MySQL索引及调优篇.assets/image-20220705161746184.png)
 
+<font color='red'>因为book表加了索引Y，所以book作为被驱动表是可以的</font>
+
 ```mysql
 ALTER TABLE type ADD INDEX X (card);
 EXPLAIN SELECT SQL_NO_CACHE * FROM type INNER JOIN book ON type.card=book.card;
 ```
 
 ![image-20220705161843558](MySQL索引及调优篇.assets/image-20220705161843558.png)
+
+<font color='red'>此时两个表都加上了索引，而且此时两个表各有20条记录，所以谁驱动谁区别不大，这里的结果是book驱动type</font>
 
 对于内连接来说，查询优化器可以决定谁作为驱动表，谁作为被驱动表出现的
 
@@ -4539,6 +4577,8 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM TYPE INNER JOIN book ON type.card=book.card;
 ```
 
 ![image-20220705161929544](MySQL索引及调优篇.assets/image-20220705161929544.png)
+
+<font color='red'>现在只有book表有索引，所以book作为被驱动表很合理</font>
 
 接着：
 
@@ -4552,6 +4592,7 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM `type` INNER JOIN book ON type.card=book.card
 接着：
 
 ```mysql
+# 这里写的不对，应该是往type表里添加数据的，下面的sql应该是给type表添加数据
 #向图书表中添加20条记录
 INSERT INTO book(card) VALUES(FLOOR(1 + (RAND() * 20)));
 INSERT INTO book(card) VALUES(FLOOR(1 + (RAND() * 20)));
@@ -4581,6 +4622,10 @@ EXPLAIN SELECT SQL_NO_CACHE * FROM `type` INNER JOIN book ON `type`.card = book.
 ![image-20220705163833445](MySQL索引及调优篇.assets/image-20220705163833445.png)
 
 图中发现，由于type表数据大于book表数据，MySQL选择将type作为被驱动表。
+
+<font color='red'>给type表加了20条记录，现在book表是20条记录，type是40条记录，而且两个表都有索引，此时一定是小表驱动大表，即book驱动type，因为都有索引，所以让行数多的表被驱动这样利用的索引就能更多一点，</font>
+
+<font color='red'>在内连接的时候，两个表的地位相同，如果只有一个表的字段有索引，那么被驱动表就是有索引的表，如果两个表都没有或者都有索引，那么一般都是小表驱动大表，因为有索引找的快</font>
 
 ### 3.4 join语句原理
 
@@ -4624,6 +4669,14 @@ EXPLAIN SELECT * FROM a LEFT JOIN b ON(a.f1=b.f1) WHERE (a.f2=b.f2);
 EXPLAIN SELECT * FROM a LEFT JOIN b ON(a.f1=b.f1) AND (a.f2=b.f2);
 ```
 
+<font color='red'>测试1的结果，发现sql写的是a左外连接b，但是真正执行的却是b驱动了a，这说明外连接的驱动表与被驱动表不一定是一定的，有可能会被优化为内连接，下面的结果不仅b驱动a，而且a用了索引</font>
+
+<font color='red'>测试1的语句其实是外连接优化为内连接，然后因为表a的链接字段f1有索引，所以a作为了被驱动表</font>
+
+<font color='red'>那么测试1的外连接为什么会优化为内连接呢，因为这里外连接和内连接的结果是一样的，而且内连接的时候两个表的地位是相同的，正好被驱动表有个索引，所以尽管是a左外连接b，但是因为a左外连接b和b内连接a（且a有索引）的结果相同，此时外连接就会被优化为内连接</font>
+
+![image-20230330125617422](img/image-20230330125617422.png)
+
 #### 2. Simple Nested-Loop Join (简单嵌套循环连接)
 
 算法相当简单，从表A中取出一条数据1，遍历表B，将匹配到的数据放到result.. 以此类推，驱动表A中的每一条记录与被驱动表B的记录进行判断：
@@ -4648,9 +4701,15 @@ Index Nested-Loop Join其优化的思路主要是为了`减少内存表数据的
 
 如果被驱动表加索引，效率是非常高的，但如果索引不是主键索引，所以还得进行一次回表查询。相比，被驱动表的索引是主键索引，效率会更高。
 
+
+
 #### 4. Block Nested-Loop Join（块嵌套循环连接）
 
 <img src="MySQL索引及调优篇.assets/image-20220705173047234.png" alt="image-20220705173047234" style="float:left;" />
+
+<font color='red'>照上面的意思，驱动表每拿出来一条记录到内存的话，都需要被驱动表整个都加载进内存做一次匹配，然后会清除内存！然后驱动表的下一条拿出来到内存，被驱动表又会整个被加载进内存做一次匹配，然后再清除内存！那么驱动表的每条记录都匹配完了，被驱动表不知道会被IO多少次，这显然是不合适的</font>
+
+<font color='red'>注意这里是在内存里分配一块buffer叫做join buffer，然后这个buffer用来放驱动表的，假如buffer足够大，一次就把驱动表全放进buffer里，也就是直接把驱动表全部放到了内存里，接下来要进行的操作是全表扫描被驱动表，对于被驱动表的每一行都与buffer里面的驱动表的每一行进行匹配</font>
 
 > 注意：
 >
@@ -4712,10 +4771,11 @@ select t1.b,t2.* from t2 straight_join t1 on (t1.b=t2.b) where t2.id<=100; # 不
 
 ### 3.5 小结
 
-* 保证被驱动表的JOIN字段已经创建了索引 
-* 需要JOIN 的字段，数据类型保持绝对一致。 
+* 保证被驱动表的JOIN字段已经创建了索引 ，<font color='red'>被驱动表的字段上了索引的话，在被驱动表里找的会很快</font>
+* 需要JOIN 的字段，数据类型保持绝对一致。 <font color='red'>以防索引失效</font>
 * LEFT JOIN 时，选择小表作为驱动表， 大表作为被驱动表 。减少外层循环的次数。 
-* INNER JOIN 时，MySQL会自动将 小结果集的表选为驱动表 。选择相信MySQL优化策略。 
+* INNER JOIN 时，MySQL会自动将 小结果集的表选为驱动表 。选择相信MySQL优化策略。 <font color='red'>感觉分为双方都有索引和双方都无索引的情况，假如双方都有索引，那么一定是小表驱动大表，因为有索引，每次从小表加载到内存一条数据之后再从大表找会很快，假如双方都没有索引，那就是BNLJ，有一个buffer在内存里，一次性（如果buffer足够大的话）存放小表（驱动表）的全部数据，然后把大表（被驱动表）放到内存里，然后对于大表的每一条都和buffer里面的小表进行匹配</font>
+
 * 能够直接多表关联的尽量直接关联，不用子查询。(减少查询的趟数) 
 * 不建议使用子查询，建议将子查询SQL拆开结合程序多次查询，或使用 JOIN 来代替子查询。 
 * 衍生表建不了索引
