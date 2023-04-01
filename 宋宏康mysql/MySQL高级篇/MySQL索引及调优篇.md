@@ -3813,6 +3813,12 @@ select * from sys.innodb_lock_waits;
 * 物理查询优化是通过`索引`和`表连接方式`等技术来进行优化，这里重点需要掌握索引的使用。
 * 逻辑查询优化就是通过SQL`等价变换`提升查询效率，直白一点就是说，换一种查询写法效率可能更高。
 
+
+
+<font color='red'>学习优化之前希望明白一件事情，并不是说加了索引就一定快，也不一定我们本次查询用到了索引就比全表扫描快，因为什么场景都会发生，就比如来一个非聚簇索引回表了几百万次，可能性能确实不如全表扫描来的快，这取决于优化器如何选择</font>
+
+
+
 ## 1. 数据准备
 
 `学员表` 插 `50万` 条，` 班级表` 插 `1万` 条。
@@ -5160,6 +5166,8 @@ EXPLAIN SELECT id,age,NAME FROM student WHERE NAME LIKE '%abc';
 
 ![image-20220706125113658](MySQL索引及调优篇.assets/image-20220706125113658.png)
 
+<font color='red'>可以发现这里模糊匹配出现了 “%在前面”，正常情况是不会用索引的吧？但是我们观察上面的图片居然用了age和NAME的联合索引，为什么？因为执行器发现如果直接在你age和NAME的联合索引对应的那个B+树上进行模糊匹配更快（最主要的是你select后面的字段在这个b+树上都有，发生了索引覆盖），所以执行器决定使用这个联合索引！因为不用发生回表。那么执行器怎么在age和NAME的联合索引对应的B+树上进行模糊匹配呢？我估计是暴力查找</font>
+
 上述都使用到了声明的索引，下面的情况则不然，查询列依然多了classId,结果是未使用到索引：
 
 ```mysql
@@ -5167,6 +5175,10 @@ EXPLAIN SELECT id,age,NAME,classId FROM student WHERE NAME LIKE '%abc';
 ```
 
 ![image-20220706125351116](MySQL索引及调优篇.assets/image-20220706125351116.png)
+
+
+
+
 
 ### 8.2 覆盖索引的利弊
 
@@ -5269,6 +5281,29 @@ SET optimizer_switch = 'index_condition_pushdown=off';
 
 <img src="MySQL索引及调优篇.assets/image-20220706135723203.png" alt="image-20220706135723203" style="zoom:80%;float:left" />
 
+
+
+### 10.4.1 ICP总结
+
+<font color='red'>以下内容重要：ICP的核心</font>
+
+![image-20230331180210589](img/image-20230331180210589.png)
+
+联合索引是（zipcode，lastname，address）
+
+<font color='red'>假如没有ICP：先走zipcode索引找到一些主键，然后因为lastname索引失效，所以回表，对找到的主键对应的行进行lastname和address的过滤，最后得到结果</font>
+
+<font color='red'>有ICP：先走zipcode索引找到一些主键，尽管lastname的通配符在前面，lastname在联合索引中失效了，我们先不着急回表，先把zipcode找到的主键对应的那些行（因为是联合索引），进行对lastname的一个过滤（这时候需要回表查询的条数就会减少）</font>
+
+<font color='red'>也就是说ICP需要你的联合索引失效，让你先不急着回表（因为假如你的联合索引不失效的话是最好的情况了，索引生效了还有什么大问题呢？），先把能过滤的过滤了，使得回表次数尽可能的少，减少IO的次数</font>
+
+<font color='red'>ICP主要过程就是把数据筛选的过程放到存储引擎去做而不是Server端去做</font>
+
+索引下推的全程是索引条件下推，更能体现索引下推适用于联合索引
+
+
+
+
 ### 10.4 开启和关闭ICP性能对比
 
 <img src="MySQL索引及调优篇.assets/image-20220706135904713.png" alt="image-20220706135904713" style="zoom:80%;float:left" />
@@ -5282,6 +5317,10 @@ SET optimizer_switch = 'index_condition_pushdown=off';
 3. 对于`InnoDB`表，ICP仅用于`二级索引`。ICP的目标是减少全行读取次数，从而减少I/O操作。
 4. 当SQL使用覆盖索引时，不支持ICP优化方法。因为这种情况下使用ICP不会减少I/O。
 5. 相关子查询的条件不能使用ICP
+
+
+
+
 
 ## 11. 普通索引 vs 唯一索引
 
@@ -5562,6 +5601,18 @@ UUID = 时间+UUID版本（16字节）- 时钟序列（4字节） - MAC地址（
 
 UUID根据字符串进行存储，设计时还带有无用"-"字符串，因此总共需要36个字节。
 
+<font color='red'>貌似想知道uuid里面到底怎么组成的没啥意义，只需要知道uuid基本不会重复就好了</font>
+
+<font color='red'>也就是说，调用mysql的uuid函数产生的uuid是一个varchar(36)的字符串</font>
+
+
+
+<font color='red'>但是要明白，一般uuid都是32个的16进制字符串组成，即uuid是32个字符，每个字符都是16进制的字符串，所以按照字符编码utf8-mb3，英文、数字字符占1个字节，所以这32个字符占用32个字节，再加上4个横杠，一共是36个字节。在mysql8中采用二进制存储的话总大小会被优化到16个字节</font>
+
+<font color='red'>特殊的：不同的uuid版本会有不同的具体uuid内容，康师傅这里讲的是uuid的版本1，因为版本1用到了mac地址，一共5个版本，每个版本各有各的好处，但是不管是哪个版本，都是32个16进制的字符串，中间有4个横杠</font>
+
+
+
 `为什么UUID是随机无序的呢？`
 
 因为UUID的设计中，将时间低位放在最前面，而这部分的数据是一直在变化的，并且是无序。
@@ -5583,6 +5634,18 @@ SELECT @uuid,uuid_to_bin(@uuid),uuid_to_bin(@uuid,TRUE);
 
 **通过函数uuid_to_bin(@uuid,true)将UUID转化为有序UUID了**。全局唯一 + 单调递增，这不就是我们想要的主键！
 
+[The UUID in MySQL8 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/39453788#:~:text=为解决这一问题，mysql8提供了两个函数：UID_TO_BIN(arg1)%2F BIN_TO_UUID(arg1%2Carg2),UID_TO_BIN(arg1) 将UUID转化为16位二进制字符串，如果参数arg1为true则将UUID中的timestamp部分中的time-low（第一段字符）和time-high（第三段）调换，这样产生的UUID是顺序递增。)
+
+<font color='red'>知乎上mysql8对于uuid的增强的详细的解释，别忘了16进制是半个字节，所以32位自然就是16个字节啦，也就是说mysql8能让我们以每个有序uuid仅需占用16个字节的大小（底层是用二进制存储的），这很强的！！！</font>
+
+![image-20230401233758006](img/image-20230401233758006.png)
+
+<font color='red'>这种优化方案只适用于版本1的uuid，因为这个版本有时间戳，可以将时间戳的高位低位反转得到有序的uuid，但是一旦用到了其他版本的uuid，没有时间戳了，比如版本4，纯纯随机数，128位里122位都是随机数，这就没法得到有序的uuid了，自然没法用他当主键了</font>
+
+[UUID 不同版本的区别及选择 - 简书 (jianshu.com)](https://www.jianshu.com/p/76e3a75605ed)
+
+
+
 **有序UUID性能测试**
 
 16字节的有序UUID，相比之前8字节的自增ID，性能和存储空间对比究竟如何呢？
@@ -5595,7 +5658,7 @@ SELECT @uuid,uuid_to_bin(@uuid),uuid_to_bin(@uuid,TRUE);
 
 另外，虽然有序UUID相比自增ID多了8个字节，但实际只增大了3G的存储空间，还可以接受。
 
-> 在当今的互联网环境中，非常不推荐自增ID作为主键的数据库设计。更推荐类似有序UUID的全局 唯一的实现。 
+> 在当今的互联网环境中，非常不推荐自增ID作为主键的数据库设计。更推荐类似有序UUID的全局 唯一的实现。 <font color='red'>全局体现在分库分表的时候，uuid在全局不会受到影响</font>
 >
 > 另外在真实的业务系统中，主键还可以加入业务和系统属性，如用户的尾号，机房的信息等。这样 的主键设计就更为考验架构师的水平了。
 
@@ -5610,6 +5673,12 @@ SELECT @uuid,uuid_to_bin(@uuid),uuid_to_bin(@uuid,TRUE);
 门店在添加会员的时候，先到总部 MySQL 数据库中获取这个最大值，在这个基础上加 1，然后用这个值 作为新会员的“id”，同时，更新总部 MySQL 数据库管理信息表中的当前会员编号的最大值。
 
 这样一来，各个门店添加会员的时候，都对同一个总部 MySQL 数据库中的数据表字段进行操作，就解 决了各门店添加会员时会员编号冲突的问题。
+
+<font color='red'>主键要尽可能保证非空唯一+有序，如果使用uuid最好也好使得uuid有序，而且要知道有序的uuid是可以在业务端生成的，这把自增id要少一次查询的，而且mysql8.0也解决了uuid占用内存大的问题</font>
+
+
+
+
 
 # 第11章_数据库的设计规范
 
