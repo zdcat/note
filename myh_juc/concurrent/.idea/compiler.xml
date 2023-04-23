@@ -10,25 +10,17 @@
         <module name="case_monitor" />
         <module name="jmh_performance" />
         <module name="case_java8" />
-        <module name="case_tomcat" />
         <module name="case_java7" />
+        <module name="case_thirdpart" />
+        <module name="case_tomcat" />
         <module name="jcstress_ordering" />
         <module name="jmh_eliminate_locks" />
-        <module name="case_thirdpart" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="case_java7" target="1.7" />
-      <module name="case_java8" target="1.8" />
-      <module name="case_monitor" target="1.8" />
-      <module name="case_thirdpart" target="1.8" />
-      <module name="case_tomcat" target="1.8" />
       <module name="customthreadpool" target="1.8" />
       <module name="eliminate-locks" target="1.8" />
       <module name="java_concurrent" target="1.8" />
-      <module name="jcstress_ordering" target="1.8" />
-      <module name="jmh_eliminate_locks" target="1.8" />
-      <module name="jmh_performance" target="1.8" />
       <module name="monitor" target="1.8" />
       <module name="ordering" target="1.8" />
       <module name="performance" target="1.8" />

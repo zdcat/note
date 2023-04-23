@@ -641,7 +641,7 @@ SpringCloud底层其实是利用了一个名为Ribbon的组件，来实现负载
 
 ![1525620483637](assets/1525620483637.png)
 
-可以看到这里的intercept方法，拦截了用户的HttpRequest请求，然后做了几件事：
+可以看到这里的intercept方法，拦截了用户的HttpRequest请求（<font color='red'>因为本来服务之间的调用就是http请求</font>），然后做了几件事：
 
 - `request.getURI()`：获取请求uri，本例中就是 http://user-service/user/8
 - `originalUri.getHost()`：获取uri路径的主机名，其实就是服务id，`user-service`
@@ -660,9 +660,14 @@ SpringCloud底层其实是利用了一个名为Ribbon的组件，来实现负载
 代码是这样的：
 
 - getLoadBalancer(serviceId)：根据服务id获取ILoadBalancer，而ILoadBalancer会拿着服务id去eureka中获取服务列表并保存起来。
+
+  <font color='red'>serviceId，其实就是上面传入的服务id，也就是你要调用的服务名</font>
+
+  <font color='red'>可以看到loadBalancer的本质就是DynamicServerListLoadBalancer，也就是它找的Eureka根据服务id找到所有的ip与端口，也就是说此时，loadBalancer这个对象已经存放了服务id对应的所有的ip和端口了</font>
+
 - getServer(loadBalancer)：利用内置的负载均衡算法，从服务列表中选择一个。本例中，可以看到获取了8082端口的服务
 
-
+  <font color='red'>通过传入loadBalancer，调用getServer()方法经过负载均衡策略的一个ip和端口</font>
 
 放行后，再次访问并跟踪，发现获取的是8081：
 
@@ -702,7 +707,7 @@ SpringCloud底层其实是利用了一个名为Ribbon的组件，来实现负载
 
 ### 4）总结
 
-SpringCloudRibbon的底层采用了一个拦截器，拦截了RestTemplate发出的请求，对地址做了修改。用一幅图来总结一下：
+SpringCloudRibbon的底层采用了一个**拦截器**，拦截了RestTemplate发出的http请求，对地址做了修改。用一幅图来总结一下：
 
 ![image-20210713224724673](assets/image-20210713224724673.png)
 
@@ -760,6 +765,8 @@ public IRule randomRule(){
 }
 ```
 
+<font color='red'>这种方式配置的负载均衡规则是全局的</font>
+
 
 
 2. 配置文件方式：在order-service的application.yml文件中，添加新的配置也可以修改规则：
@@ -769,6 +776,8 @@ userservice: # 给某个微服务配置负载均衡规则，这里是userservice
   ribbon:
     NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RandomRule # 负载均衡规则 
 ```
+
+<font color='red'>这里可以选择当前服务对于其他服务的负载均衡的规则的选择是怎么样的</font>
 
 
 
@@ -788,6 +797,10 @@ ribbon:
     enabled: true
     clients: userservice
 ```
+
+<font color='red'>clinets参数可以跟多个，也就是说可以单独配置当前服务对于其他服务的调用时负载均衡是饥饿加载还是懒加载</font>
+
+<font color='red'>个人觉得不管是懒加载还是饥饿加载主要花费的时间在于：根据服务id去找Eureka获得服务列表的过程，也就是那个DynamicServerListLoadBalancer生成的过程，因为是DynamicServerListLoadBalancer去找Eureka根据服务id获得ip和端口集合的</font>
 
 
 
@@ -818,11 +831,15 @@ Nacos是SpringCloudAlibaba的组件，而SpringCloudAlibaba也遵循SpringCloud�
 - 依赖不同
 - 服务地址不同
 
+<font color='red'>nacos和eureka都是负责服务注册和服务发现的，使用nacos和使用eureka的步骤一样，因为springcloud common部分有服务注册和服务发现的接口</font>
+
 
 
 ### 1）引入依赖
 
 在cloud-demo父工程的pom文件中的`<dependencyManagement>`中引入SpringCloudAlibaba的依赖：
+
+<font color='red'>因为nacos是alibaba的东西，所以要引入alibaba的依赖</font>
 
 ```xml
 <dependency>
@@ -857,7 +874,7 @@ Nacos是SpringCloudAlibaba的组件，而SpringCloudAlibaba也遵循SpringCloud�
 spring:
   cloud:
     nacos:
-      server-addr: localhost:8848
+      server-addr: localhost:8848 （默认端口8848）
 ```
 
 
@@ -888,9 +905,17 @@ spring:
 - 127.0.0.1:8082，在上海机房
 - 127.0.0.1:8083，在杭州机房
 
-Nacos就将同一机房内的实例 划分为一个**集群**。
+
+
+<font color='red'>Nacos就将同一机房内的实例 划分为一个**集群**。</font>
+
+<font color='red'>一个机房可以有多个服务的实例，所以一个集群事实上可以包含任意多个实例，只要他们是在同一个机房的</font>
+
+
 
 也就是说，user-service是服务，一个服务可以包含多个集群，如杭州、上海，每个集群下可以有多个实例，形成分级模型，如图：
+
+<font color='red'>所以在nacos的服务分级下，是服务---->集群---->实例</font>
 
 ![image-20210713232522531](assets/image-20210713232522531.png)
 
@@ -945,11 +970,17 @@ spring:
 
 
 
+![image-20230423114357353](C:\Users\84334\AppData\Roaming\Typora\typora-user-images\image-20230423114357353.png)
+
+
+
 ### 5.3.2.同集群优先的负载均衡
 
 默认的`ZoneAvoidanceRule`并不能实现根据同集群优先来实现负载均衡。
 
 因此Nacos中提供了一个`NacosRule`的实现，可以优先从同集群中挑选实例。
+
+<font color='red'>集群优先，然后集群内部随机</font>
 
 1）给order-service配置集群信息
 
@@ -969,6 +1000,8 @@ spring:
 2）修改负载均衡规则
 
 修改order-service的application.yml文件，修改负载均衡规则：
+
+<font color='red'>和之前的配置方式写法完全相同，只不过就是修改了负载均衡规则</font>
 
 ```yaml
 userservice:
@@ -993,6 +1026,8 @@ userservice:
 
 
 在nacos控制台，找到user-service的实例列表，点击编辑，即可修改权重：
+
+<font color='red'>权重是在nacos控制台配置的</font>
 
 ![image-20210713235133225](assets/image-20210713235133225.png)
 
@@ -1019,6 +1054,10 @@ Nacos提供了namespace来实现环境隔离功能。
 
 
 ![image-20210714000101516](assets/image-20210714000101516.png)
+
+
+
+![image-20230423175700099](C:\Users\84334\Desktop\zdcat_note\黑马微服务\assets\image-20230423175700099.png)
 
 
 
@@ -1076,6 +1115,16 @@ spring:
 
 ![image-20210714000941256](assets/image-20210714000941256.png)
 
+<font color='red'>不同命名空间里的服务是不可见的</font>
+
+<font color='red'>group的概念是关系相近的service会放在一个group里面</font>
+
+<font color='red'>service还是正常的可以配置集群</font>
+
+
+
+<font color='cornflowerblue'>总体效果就是：不同的namaspace下，相关性高的service在一个group里，这些service按照实例的机房位置不同，会有集群，每个集群里有实例</font>
+
 
 
 ## 5.6.Nacos与Eureka的区别
@@ -1109,16 +1158,19 @@ Nacos和Eureka整体结构类似，服务注册、服务拉取、心跳等待，
 
 
 - Nacos与eureka的共同点
-  - 都支持服务注册和服务拉取
-  - 都支持服务提供者心跳方式做健康检测
-
+  - 都支持服务注册和服务拉取 <font color='red'>（一个注册中心应该具有的功能）</font>
+  - 都支持服务提供者心跳方式做健康检测 <font color='red'>（临时实例的活跃性证明，不断心跳给注册中心）</font>
 - Nacos与Eureka的区别
-  - Nacos支持服务端主动检测提供者状态：临时实例采用心跳模式，非临时实例采用主动检测模式
-  - 临时实例心跳不正常会被剔除，非临时实例则不会被剔除
-  - Nacos支持服务列表变更的消息推送模式，服务列表更新更及时
-  - Nacos集群默认采用AP方式，当集群中存在非临时实例时，采用CP模式；Eureka采用AP方式
+  - Nacos支持服务端主动检测提供者状态：临时实例采用心跳模式，非临时实例采用主动检测模式  <font color='red'>（亲儿子和非亲儿子的区别）</font>
+  - 临时实例心跳不正常会被剔除，非临时实例则不会被剔除 
+  - Nacos支持服务列表变更的消息推送模式，服务列表更新更及时  <font color='red'>这是nacos的好处，如果nacos收不到服务提供者发来的心跳了，那么nacos会主动发送给服务消费者发送消息，即push消息让消费者修改服务列表缓存</font>
+  - Nacos集群默认采用AP方式，当集群中存在非临时实例时，采用CP模式；Eureka采用AP方式 
+    - AP模式指的是“可用性优先”，在这种模式下，Nacos保证服务注册和发现的高可用性，并允许数据在一定时间内出现不一致的情况。在AP模式下，Nacos会尽可能地保证服务的可用性，即使数据存在不一致，也可以继续提供服务，因此AP模式适合于对高可用性要求较高的场景，比如分布式系统、微服务等。
+    - CP模式指的是“一致性优先”，在这种模式下，Nacos保证数据的一致性，但是不能同时保证服务的高可用性。在CP模式下，当数据发生改变时，必须等待所有节点都更新完成后才能继续提供服务，因此CP模式适用于对数据一致性要求较高的场景，比如金融、电商等。
+    - 总之，AP模式适用于高可用性场景，而CP模式适用于数据一致性场景。选择哪种模式取决于应用的具体需求。
 
 
 
 
 
+ 
