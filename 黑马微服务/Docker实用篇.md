@@ -67,13 +67,21 @@ Docker为了解决依赖的兼容问题的，采用了两个手段：
 
 ![image-20210731143401460](assets/image-20210731143401460.png)
 
+<font color='red'>内核是可以和硬件打交道的，通过 `指令` 操作内核与硬件打交道</font>
+
+<font color='red'>但是指令过于简陋，所以会有各种各样的 `发行版` 在内核外套了一个壳子，封装内核提供的指令，形成 `系统函数库` ，然后真正的应用，比如mysql、redis、node js之类的使用的是 `系统函数库` </font>
+
+
+
+<font color='cornflowerblue'>docker在windows下运行的原理：在Windows上运行Docker时，Docker会在Hyper-V虚拟机中创建一个轻量级的Linux子系统，该子系统包含一个最小化的Linux发行版和Docker Engine。然后，每当你启动一个Docker容器时，它将在这个Linux子系统中运行，并且可以访问到子系统所提供的资源（例如文件系统、网络栈等）。</font>
+
 
 
 结构包括：
 
 - 计算机硬件：例如CPU、内存、磁盘等
 - 系统内核：所有Linux发行版的内核都是Linux，例如CentOS、Ubuntu、Fedora等。内核可以与计算机硬件交互，对外提供**内核指令**，用于操作计算机硬件。
-- 系统应用：操作系统本身提供的应用、函数库。这些函数库是对内核指令的封装，使用更加方便。
+- 系统应用：操作系统本身提供的应用、函数库。**这些函数库是对内核指令的封装**，使用更加方便。
 
 
 
@@ -87,7 +95,7 @@ Docker为了解决依赖的兼容问题的，采用了两个手段：
 
 
 
-Ubuntu和CentOSpringBoot都是基于Linux内核，无非是系统应用不同，提供的函数库有差异：
+Ubuntu和CentOSpringBoot都是基于Linux内核，**无非是系统应用不同，提供的函数库有差异**：
 
 ![image-20210731144304990](assets/image-20210731144304990.png)
 
@@ -101,10 +109,12 @@ Ubuntu和CentOSpringBoot都是基于Linux内核，无非是系统应用不同，
 
 Docker如何解决不同系统环境的问题？
 
-- Docker将用户程序与所需要调用的系统(比如Ubuntu)函数库一起打包
-- Docker运行到不同操作系统时，直接基于打包的函数库，借助于操作系统的Linux内核来运行
+- <font color='red'>Docker将用户程序与所需要调用的系统(比如Ubuntu)函数库一起打包</font>
+- <font color='red'>Docker运行到不同操作系统时，直接基于打包的函数库，借助于操作系统的Linux内核来运行</font>
 
 如图：
+
+<font color='cornflowerblue'>docker把应用和依赖系统函数打包，借助linux内核运行</font>
 
 ![image-20210731144820638](assets/image-20210731144820638.png)
 
@@ -112,30 +122,32 @@ Docker如何解决不同系统环境的问题？
 
 ### 1.1.4.小结
 
-Docker如何解决大型项目依赖关系复杂，不同组件依赖的兼容性问题？
+<font color='red'>Docker如何解决大型项目依赖关系复杂，不同组件依赖的兼容性问题？</font>
 
-- Docker允许开发中将应用、依赖、函数库、配置一起**打包**，形成可移植镜像
+- Docker允许开发中将应用、依赖、函数库、配置一起**打包**，形成可移植镜像 <font color='red'>到时候应用程序调用的都是镜像内的系统函数，直接与内核打交道，不必关心具体的操作系统</font>
 - Docker应用运行在容器中，使用沙箱机制，相互**隔离**
 
 
 
-Docker如何解决开发、测试、生产环境有差异的问题？
+<font color='red'>Docker如何解决开发、测试、生产环境有差异的问题？</font>
 
 - Docker镜像中包含完整运行环境，包括系统函数库，仅依赖系统的Linux内核，因此可以在任意Linux操作系统上运行
+
+  <font color='red'>关键在于docker镜像里包括了完整的运行环境，包括软件需要的依赖，还有库函数，这些库函数仅仅依赖系统的linux内核，所以和发行版无关</font>
 
 
 
 Docker是一个快速交付应用、运行应用的技术，具备下列优势：
 
-- 可以将程序及其依赖、运行环境一起打包为一个镜像，可以迁移到任意Linux操作系统
-- 运行时利用沙箱机制形成隔离容器，各个应用互不干扰
+- 可以将<font color='red'>程序及其依赖、运行环境一起</font>打包为一个<font color='red'>镜像</font>，可以迁移到<font color='red'>任意</font>Linux操作系统
+- 运行时利用沙箱机制形成<font color='red'>隔离容器</font>，各个应用<font color='red'>互不干扰</font>
 - 启动、移除都可以通过一行命令完成，方便快捷
 
 
 
 ## 1.2.Docker和虚拟机的区别
 
-Docker可以让一个应用在任何操作系统中非常方便的运行。而以前我们接触的虚拟机，也能在一个操作系统中，运行另外一个操作系统，保护系统中的任何应用。
+Docker可以<font color='red'>让一个应用在任何操作系统中非常方便的运行</font>。而以前我们接触的虚拟机，也能在一个操作系统中，运行另外一个操作系统，保护系统中的任何应用。
 
 
 
@@ -145,7 +157,7 @@ Docker可以让一个应用在任何操作系统中非常方便的运行。而�
 
 **虚拟机**（virtual machine）是在操作系统中**模拟**硬件设备，然后运行另一个操作系统，比如在 Windows 系统里面运行 Ubuntu 系统，这样就可以运行任意的Ubuntu应用了。
 
-**Docker**仅仅是封装函数库，并没有模拟完整的操作系统，如图：
+**Docker**仅仅是<font color='red'>封装函数库，并没有模拟完整的操作系统</font>，如图：
 
 ![image-20210731145914960](assets/image-20210731145914960.png)
 
@@ -177,9 +189,9 @@ Docker和虚拟机的差异：
 
 Docker中有几个重要的概念：
 
-**镜像（Image）**：Docker将应用程序及其所需的依赖、函数库、环境、配置等文件打包在一起，称为镜像。
+**镜像（Image）**：Docker将应用程序及其所需的依赖、函数库、环境、配置等文件打包在一起，称为镜像。 <font color='red'>应用程序的拖家带口成为镜像，而且是可以在任意一个linux上运行的，本质上是一个文件</font>
 
-**容器（Container）**：镜像中的应用程序运行后形成的进程就是**容器**，只是Docker会给容器进程做隔离，对外不可见。
+**容器（Container）**：镜像中的应用程序运行后形成的进程就是**容器**，只是Docker会给容器进程做隔离，对外不可见。<font color='red'>镜像跑起来的进程就是容器</font>
 
 
 
@@ -187,7 +199,7 @@ Docker中有几个重要的概念：
 
 
 
-而**镜像**，就是把一个应用在硬盘上的文件、及其运行环境、部分系统函数库文件一起打包形成的文件包。这个文件包是只读的。
+而**镜像**，就是把一个应用在硬盘上的文件、及其运行环境、部分系统函数库文件一起打包形成的文件包。<font color='red'>这个文件包是只读的，避免修改污染了镜像 </font>。
 
 **容器**呢，就是将这些文件中编写的程序、函数加载到内存中允许，形成进程，只不过要隔离起来。因此一个镜像可以启动多次，形成多个容器进程。
 
@@ -233,19 +245,23 @@ Docker是一个CS架构的程序，由两部分组成：
 
 ![image-20210731154257653](assets/image-20210731154257653.png)
 
+1. <font color='red'>docker build适合自定义程度比较高的镜像的使用，docker daemon守护进程去给你创建镜像</font>
+2. <font color='red'>docker pull是从官方直接拉取完整的、能用的镜像来用，docker daemon守护进程去给你去Registry里给你拉取镜像下来</font>
+3. <font color='red'>docker run是让docker daemon去运行镜像</font>
+
 
 
 ### 1.3.4.小结
 
 
 
-镜像：
+<font color='red'>镜像：</font>
 
-- 将应用程序及其依赖、环境、配置打包在一起
+- <font color='red'>将应用程序及其依赖、环境、配置打包在一起</font>
 
-容器：
+<font color='red'>容器：</font>
 
-- 镜像运行起来就是容器，一个镜像可以运行多个容器
+- <font color='red'>镜像运行起来就是容器，一个镜像可以运行多个容器</font>
 
 Docker结构：
 
@@ -253,9 +269,9 @@ Docker结构：
 
 - 客户端：发送命令或者请求到Docker服务端
 
-DockerHub：
+<font color='red'>DockerHub：</font>
 
-- 一个镜像托管的服务器，类似的还有阿里云镜像服务，统称为DockerRegistry
+- <font color='red'>一个镜像托管的服务器，类似的还有阿里云镜像服务，统称为DockerRegistry</font>
 
 
 
@@ -288,6 +304,8 @@ DockerHub：
 
 这里的mysql就是repository，5.7就是tag，合一起就是镜像名称，代表5.7版本的MySQL镜像。
 
+<font color='red'>tag一般是版本号</font>
+
 
 
 ### 2.1.2.镜像命令
@@ -295,6 +313,8 @@ DockerHub：
 常见的镜像操作命令如图：
 
 ![image-20210731155649535](assets/image-20210731155649535.png)
+
+<font color='red'>注意docker build的时候，一定是把Dockerfile构建成镜像的，即是把一个本地文件构建成镜像</font>
 
 
 
@@ -307,6 +327,8 @@ DockerHub：
 ![image-20210731155844368](assets/image-20210731155844368.png)
 
 2）根据查看到的镜像名称，拉取自己需要的镜像，通过命令：docker pull nginx
+
+<font color='red'>如果不写版本号，默认就是最新版本</font>
 
 ![image-20210731155856199](assets/image-20210731155856199.png)
 
@@ -411,8 +433,8 @@ docker load -i nginx.tar
 容器保护三个状态：
 
 - 运行：进程正常运行
-- 暂停：进程暂停，CPU不再运行，并不释放内存
-- 停止：进程终止，回收进程占用的内存、CPU等资源
+- 暂停：进程暂停，CPU不再运行，并不释放内存 <font color='red'>有点挂起的意思</font>
+- 停止：进程终止，回收进程占用的内存、CPU等资源 
 
 
 
@@ -440,7 +462,7 @@ docker run --name containerName -p 80:80 -d nginx
 
 - docker run ：创建并运行一个容器
 - --name : 给容器起一个名字，比如叫做mn
-- -p ：将宿主机端口与容器端口映射，冒号左侧是宿主机端口，右侧是容器端口
+- -p ：将宿主机端口与容器端口映射，冒号左侧是宿主机端口，右侧是容器端口 ，<font color='red'>-p是用来做端口的关联映射的</font>
 - -d：后台运行容器
 - nginx：镜像名称，例如nginx
 
@@ -448,9 +470,11 @@ docker run --name containerName -p 80:80 -d nginx
 
 这里的`-p`参数，是将容器端口映射到宿主机端口。
 
-默认情况下，容器是隔离环境，我们直接访问宿主机的80端口，肯定访问不到容器中的nginx。
+默认情况下，<font color='red'>容器是隔离环境</font>，我们直接访问宿主机的80端口，肯定访问不到容器中的nginx。
 
-现在，将容器的80与宿主机的80关联起来，当我们访问宿主机的80端口时，就会被映射到容器的80，这样就能访问到nginx了：
+<font color='cornflowerblue'>容器是隔离环境，是不能从外部直接访问到的，即直接从外部是访问不到容器的80端口的，所以必须做 `宿主机端口` 和 `容器端口` 的 `映射` ，然后通过访问 `宿主机端口` ，才能访问到 `容器端口`，因为 `容器是隔离的`  </font>
+
+现在，<font color='red'>将容器的80与宿主机的80关联起来，当我们访问宿主机的80端口时，就会被映射到容器的80</font>，这样就能访问到nginx了：
 
 ![image-20210731163255863](assets/image-20210731163255863.png)
 
@@ -480,13 +504,15 @@ docker exec -it mn bash
 
 - mn ：要进入的容器的名称
 
-- bash：进入容器后执行的命令，bash是一个linux终端交互命令
+- bash：进入容器后执行的命令，bash是一个linux终端交互命令 <font color='red'>配合-it，我们可以用bash去与容器交互</font>
 
 
 
-2）进入nginx的HTML所在目录 /usr/share/nginx/html
+2）进入nginx的HTML所在目录 /usr/share/nginx/html  <font color='red'>这个目录在什么位置需要参考dockerhub上的镜像的使用文档</font>
 
 容器内部会模拟一个独立的Linux文件系统，看起来如同一个linux服务器一样：
+
+<font color='red'>这也是容器隔离性的体现，容器在运行的时候好像真的有一个文件系统在配合一样，但是事实上这个文件系统是被阉割的，只有镜像所需的全部的文件环境，比如连vim都没有</font>
 
 ![image-20210731164159811](assets/image-20210731164159811.png)
 
@@ -510,7 +536,7 @@ cd /usr/share/nginx/html
 
 3）修改index.html的内容
 
-容器内没有vi命令，无法直接修改，我们用下面的命令来修改：
+**容器内没有vi命令**，<font color='red'>（阉割版本的）</font>无法直接修改，我们用下面的命令来修改：
 
 ```sh
 sed -i -e 's#Welcome to nginx#传智教育欢迎您#g' -e 's#<head>#<head><meta charset="utf-8">#g' index.html
@@ -521,6 +547,8 @@ sed -i -e 's#Welcome to nginx#传智教育欢迎您#g' -e 's#<head>#<head><meta 
 在浏览器访问自己的虚拟机地址，例如我的是：http://192.168.150.101，即可看到结果：
 
 ![image-20210731164717604](assets/image-20210731164717604.png)
+
+<font color='red'>可以发现单纯用exec命令去与容器进行命令交互似乎不是很方便，就算可以用 bash ，但是毕竟容器里的文件系统是阉割的，所以连vim都没有，所以我们要想其他办法与容器交互</font>
 
 
 
@@ -542,7 +570,12 @@ docker run命令的常见参数有哪些？
 查看容器状态：
 
 - docker ps
+
+  <font color='cornflowerblue'> `ps` 命令本身就是用来查看进程的运行情况的， `docker ps` 自然就是查看容器运行情况了</font>
+
 - docker ps -a 查看所有容器，包括已经停止的
+
+  <font color='cornflowerblue'> `ps` 命令也可以跟 `-a` 参数， `docker ps` 就是 docker 版本的 `ps` 命令</font>
 
 
 
@@ -560,6 +593,8 @@ docker run命令的常见参数有哪些？
 
 ![image-20210731172440275](assets/image-20210731172440275.png)
 
+<font color='red'>很明显，没有学习数据卷之前，对于容器的修改是没有记录的（源于容器的阉割的文件系统），而且对容器的修改是没法复用的，所以要解决容器与数据解耦的问题</font>
+
 要解决这个问题，必须将数据与容器解耦，这就要用到数据卷了。
 
 
@@ -572,13 +607,24 @@ docker run命令的常见参数有哪些？
 
 一旦完成数据卷挂载，对容器的一切操作都会作用在数据卷对应的宿主机目录了。
 
-这样，我们操作宿主机的/var/lib/docker/volumes/html目录，就等于操作容器内的/usr/share/nginx/html目录了
+<font color='red'>这里涉及到两个文件</font>
+
+1. ​	<font color='red'>docker的 `数据卷` html目录，这个目录实际上就是你在docker里面建立的volumes中的一个volume，可以在docker单独的操作，其真实的磁盘位置是 `宿主机` 的  `/var/lib/docker/volumes/html` 目录</font>
+2. <font color='red'>容器里的位置  `/usr/share/nginx/html` </font>
+
+<font color='cornflowerblue'>本质上来说，是把 `容器` 里的 `/usr/share/nginx/html` 这个目录 `挂载` 到了宿主机里的 `/var/lib/docker/volumes/html` 这个位置 ，那么挂载操作干的事情只有一件！就是把容器里的 `/usr/share/nginx/html` 文件放到了宿主机里面的 `/var/lib/docker/volumes/html` ，然后容器里的文件的修改会随着宿主机的文件的修改而修改，这是挂载的意思。把容器里的文件挂载到宿主机里，然后修改宿主机里的文件就相当于修改容器里的文件</font>
+
+<font color='cornflowerblue'>那么我们创建的数据卷 `volume` 有什么用呢？有用的，比如我们 `docker volume create html` 创建了一个名为 `html` 的数据卷，这个数据卷在数据卷是有真实地址的，即 `/var/lib/docker/volumes/html`，然后我们启动容器的时候可以通过 `-v` 去将容器的文件挂载到 `html` 上，虽然是挂载到 `html` 上，但是实际上还是挂载到宿主机的文件上 </font>
+
+<font color='red'>这样，我们操作宿主机的/var/lib/docker/volumes/html目录，就等于操作容器内的/usr/share/nginx/html目录了</font>
 
 
 
+<font color='red'>简而言之，创建 `数据卷` ，然后在容器启动时将容器里的某个文件夹挂载到 `数据卷` 上，其实就是挂载到 `宿主机` 的文件夹上，这样操作 `宿主机` 的文件夹就是操作 `容器` 的文件夹，注意是将  `容器的文件夹` 挂载到  `宿主机文件夹` </font>
 
 
-### 2.3.2.数据集操作命令
+
+### 2.3.2.数据卷操作命令
 
 
 
@@ -630,13 +676,15 @@ docker volume ls
 docker volume inspect html
 ```
 
+<font color='red'>注意 `docker volume inspect` 这个命令可以查到指定的 `数据卷` 在 `宿主机` 的磁盘上的位置</font>
+
 结果：
 
 ![image-20210731173809877](assets/image-20210731173809877.png)
 
 可以看到，我们创建的html这个数据卷关联的宿主机目录为`/var/lib/docker/volumes/html/_data`目录。
 
-
+<font color='red'>从这里我们可以证实：docker创建的数据卷一定是有 `宿主机` 的真实的目录的</font>
 
 
 
@@ -674,6 +722,8 @@ docker run \
 
 - `-v html:/root/htm` ：把html数据卷挂载到容器内的/root/html这个目录中
 
+  <font color='red'>注意 `html数据卷` 在 `宿主机` 本地是有对应文件的，所以本质上是将 `容器目录` 挂载到 `html数据卷` ，但是 `html数据卷` 存储在 `宿主机目录` ，所以是 `容器目录` 挂载到 `宿主机目录`  </font>
+
 
 
 ### 2.3.5.案例-给nginx挂载数据卷
@@ -707,7 +757,7 @@ cd /var/lib/docker/volumes/html/_data
 vi index.html
 ```
 
-
+ 
 
 ### 2.3.6.案例-给MySQL挂载本地目录
 

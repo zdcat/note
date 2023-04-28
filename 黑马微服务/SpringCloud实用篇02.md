@@ -22,6 +22,8 @@ Nacos除了可以做注册中心，同样可以做配置管理来使用。
 
 
 
+<font color='red'>这里不知道这些微服务是相同的还是不同的，估计不同，算了也不重要，反正我们知道我们可以在nacos上写一份配置可以让很多微服务用</font>
+
 Nacos一方面可以将配置集中管理，另一方可以在配置变更时，及时通知微服务，实现配置的热更新。
 
 
@@ -48,9 +50,11 @@ Nacos一方面可以将配置集中管理，另一方可以在配置变更时，
 
 但如果尚未读取application.yml，又如何得知nacos地址呢？
 
-因此spring引入了一种新的配置文件：bootstrap.yaml文件，会在application.yml之前被读取，流程如下：
+因此spring引入了一种新的配置文件：<font color='red'>bootstrap.yaml文件，会在application.yml之前被读取</font>，流程如下：
 
 ![img](assets/L0iFYNF.png)
+
+<font color='red'>所以我们把对于nacos的配置放在bootstrap.yml配置文件里面</font>
 
 
 
@@ -83,11 +87,13 @@ spring:
         file-extension: yaml # 文件后缀名
 ```
 
+<font color='red'>其实从这里看出来，这段代码来自于bootstrap这个配置文件，然后这个配置文件属于一个服务的实例，那么nacos的配置文件就是和一个服务绑定的</font>
+
 这里会根据spring.cloud.nacos.server-addr获取nacos地址，再根据
 
 `${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}`作为文件id，来读取配置。
 
-本例中，就是去读取`userservice-dev.yaml`：
+本例中，就是去读取`userservice-dev.yaml`：<font color='red'>这也是我们在nacos控制台写的配置文件的名字</font>
 
 ![image-20210714170845901](assets/image-20210714170845901.png)
 
@@ -165,6 +171,8 @@ public class UserController {
 
 使用@ConfigurationProperties注解代替@Value注解。
 
+<font color='red'>@ConfigurationProperties可以用来做配置热更新，而且可以做配置文件的赋值</font>
+
 在user-service服务中，添加一个类，读取patterrn.dateformat属性：
 
 ```java
@@ -176,7 +184,10 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Data
+// 这个注解的意思是配置文件中，前缀是pattern，剩下的名字是类中的属性名的值可以直接注入对应的属性中
+// 比如这里就是把配置文件的pattern.dateformat注入到dateformat属性里面
 @ConfigurationProperties(prefix = "pattern")
+// 这个类专门用来做属性的配置，只要上了上面的@ConfigurationProperties注解，这个类就可以作为配置类
 public class PatternProperties {
     private String dateformat;
 }
@@ -187,6 +198,8 @@ public class PatternProperties {
 在UserController中使用这个类代替@Value：
 
 ![image-20210714171316124](assets/image-20210714171316124.png)
+
+<font color='red'>拿到被从nacos整合来的配置文件注入了属性，并且是被注入的值可以被热修改类的bean</font>
 
 
 
@@ -217,6 +230,7 @@ public class UserController {
     private UserService userService;
 
     @Autowired
+    // 注入那个配置类
     private PatternProperties patternProperties;
 
     @GetMapping("now")
@@ -332,6 +346,10 @@ Nacos生产环境下一定要部署为集群状态，部署方式参考课前资
 
 
 
+<font color='red'>声明式http请求的发送，和spring的声明式事务很像，spring的声明式事务就是你配置好哪些方法的执行要在事务里，那么方法执行会自动开关事务之类的，这里的声明式http请求的发送也一样，你只需要配置就行了，不用你手动发送http请求</font>
+
+
+
 Feign是一个声明式的http客户端，官方地址：https://github.com/OpenFeign/feign
 
 其作用就是帮助我们优雅的实现http请求的发送，解决上面提到的问题。
@@ -379,9 +397,13 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
+// 配置服务名称
 @FeignClient("userservice")
 public interface UserClient {
+    
+    // 配置请求方式，路径
     @GetMapping("/user/{id}")
+    // 配置参数，返回值
     User findById(@PathVariable("id") Long id);
 }
 ```
@@ -409,6 +431,8 @@ public interface UserClient {
 ![image-20210714175415087](assets/image-20210714175415087.png)
 
 是不是看起来优雅多了。
+
+<font color='red'>感觉feign只是让RestTemplate更加优雅了，原来的ribbon该怎么生效还是怎么生效，原来的就ribbon就是有一个负载均衡拦截器拦截了RestTemplate发出的http请求，现在http请求由feign去发，仍然是ribbon去拦截然后找nacos那一套</font>
 
 
 
@@ -781,7 +805,7 @@ Gateway网关是我们服务的守门神，所有微服务的统一入口。
 - gateway
 - zuul
 
-Zuul是基于Servlet的实现，属于阻塞式编程。而SpringCloudGateway则是基于Spring5中提供的WebFlux，属于响应式编程的实现，具备更好的性能。
+Zuul是基于Servlet的实现，**属于阻塞式编程**。而SpringCloudGateway则是基于Spring5中提供的WebFlux，属于响应式编程的实现，具备更好的性能。
 
 
 
@@ -852,7 +876,7 @@ spring:
     name: gateway # 服务名称
   cloud:
     nacos:
-      server-addr: localhost:8848 # nacos地址
+      server-addr: localhost:8848 # nacos地址 当前服务去找nacos
     gateway:
       routes: # 网关路由配置
         - id: user-service # 路由id，自定义，只要唯一即可
@@ -867,6 +891,8 @@ spring:
 我们将符合`Path` 规则的一切请求，都代理到 `uri`参数指定的地址。
 
 本例中，我们将 `/user/**`开头的请求，代理到`lb://userservice`，lb是负载均衡，根据服务名拉取服务列表，实现负载均衡。
+
+<font color='red'>其实服务名会转换为：ip:端口，如userservice会转换成 127.0.0.1:8080，这里只是举例，ip和端口到时候都和业务绑定的</font>
 
 
 
@@ -920,13 +946,19 @@ spring:
 
 ## 3.3.断言工厂
 
-我们在配置文件中写的断言规则只是字符串，这些字符串会被Predicate Factory读取并处理，转变为路由判断的条件
+我们在配置文件中写的断言规则只是字符串，这些字符串会被Predicate Factory<font color='red'>，即断言工厂，</font>读取并处理，转变为路由判断的条件
 
 例如Path=/user/**是按照路径匹配，这个规则是由
 
 `org.springframework.cloud.gateway.handler.predicate.PathRoutePredicateFactory`类来
 
-处理的，像这样的断言工厂在SpringCloudGateway还有十几个:
+<font color='red'>一种规则由一种断言工厂来实现（只是说明你在配置文件写的断言配置的具体实现是对应的断言工厂来做的，即读取配置文件，然后解析成对应的判断条件），比如你在配置的Path，就由PathRoutePredicateFactory这个路由断言工厂类来完成，比如你配置的After，就是由对应的断言工厂类完成的（肯定是有对应的，只不过暂时不知道叫啥）</font>
+
+<font color='cornflowerblue'>此工厂非设计模式的工厂，设计模式的工厂是用来产生对象的，这里的工厂大概是系统自带的用来实现功能的</font>
+
+<font color='cornflowerblue'>有了这些配置工厂，配置文件里配置的断言就有了具体的实现，也就是说这些简单的断言有了系统实现，你不必去考虑你在配置文件里配置的断言的具体实现</font>
+
+处理的，像这样的**断言工厂**在SpringCloudGateway还有十几个:
 
 | **名称**   | **说明**                       | **示例**                                                     |
 | ---------- | ------------------------------ | ------------------------------------------------------------ |
@@ -942,9 +974,9 @@ spring:
 | RemoteAddr | 请求者的ip必须是指定范围       | - RemoteAddr=192.168.1.1/24                                  |
 | Weight     | 权重处理                       |                                                              |
 
+<font color='red'>这里需要知道，断言其实是一种布尔表达式，假如你断言写的规则是A，那么不符合规则A的都视为失败，而路由的断言失败就是404，即不符合你规定的uri直接视为不存在</font>
 
-
-我们只需要掌握Path这种路由工程就可以了。
+**我们只需要掌握Path这种路由工厂就可以了**。
 
 
 
@@ -958,7 +990,19 @@ GatewayFilter是网关中提供的一种过滤器，可以对进入网关的请�
 
 ### 3.4.1.路由过滤器的种类
 
+<font color='cornflowerblue'>过滤器有三种</font>
+
+1. <font color='cornflowerblue'>路由过滤器</font>
+2. <font color='cornflowerblue'>默认过滤器，defaultFilter</font>
+3. <font color='cornflowerblue'>全局过滤器，globalFilter</font>
+
+
+
+
+
 Spring提供了31种不同的路由过滤器工厂。例如：
+
+<font color='red'>这里的过滤器工厂和上面的断言工厂的作用是一样的，你需要用到一些过滤器，然后只需在配置文件做对应的需求的配置过滤器就好了，系统有对应的过滤器工厂来实现你在配置文件里写的过滤器配置</font>
 
 | **名称**             | **说明**                     |
 | -------------------- | ---------------------------- |
@@ -990,10 +1034,12 @@ spring:
         predicates: 
         - Path=/user/** 
         filters: # 过滤器
-        - AddRequestHeader=Truth, Itcast is freaking awesome! # 添加请求头
+        - AddRequestHeader=Truth, Itcast is freaking awesome! # 添加请求头 （该底层的过滤器会实现添加请求头的功能）
 ```
 
-当前过滤器写在userservice路由下，因此仅仅对访问userservice的请求有效。
+**当前过滤器写在userservice路由下，因此仅仅对访问userservice的请求有效。**
+
+<font color='red'>卸载路由断言下的过滤器，只对路由有效</font>
 
 
 
@@ -1012,7 +1058,7 @@ spring:
         uri: lb://userservice 
         predicates: 
         - Path=/user/**
-      default-filters: # 默认过滤项
+      default-filters: # 默认过滤项，全局的过滤器，对全部服务有效
       - AddRequestHeader=Truth, Itcast is freaking awesome! 
 ```
 
@@ -1022,13 +1068,13 @@ spring:
 
 过滤器的作用是什么？
 
-① 对路由的请求或响应做加工处理，比如添加请求头
+① **对路由的请求或响应做加工处理**，比如添加请求头
 
 ② 配置在路由下的过滤器只对当前路由的请求生效
 
 defaultFilters的作用是什么？
 
-① 对所有路由都生效的过滤器
+① **对所有路由都生效的过滤器**
 
 
 
@@ -1036,11 +1082,17 @@ defaultFilters的作用是什么？
 
 上一节学习的过滤器，网关提供了31种，但每一种过滤器的作用都是固定的。如果我们希望拦截请求，做自己的业务逻辑则没办法实现。
 
+<font color='red'>虽然我们有系统提供的简单的过滤器，让我们直接在配置文件写，就可以直接生效，但是假如业务要求过滤器干很多事情，那么自带的过滤器工厂的功能就不够了，所以我们需要自定义过滤器</font>
+
+
+
 ### 3.5.1.全局过滤器作用
 
 全局过滤器的作用也是处理一切进入网关的请求和微服务响应，与GatewayFilter的作用一样。区别在于GatewayFilter通过配置定义，处理逻辑是固定的；而GlobalFilter的逻辑需要自己写代码实现。
 
-定义方式是实现GlobalFilter接口。
+**定义方式是实现GlobalFilter接口。**
+
+<font color='red'>即我们需要自定义的过滤器的时候，只需要实现GlobalFilter接口</font>
 
 ```java
 public interface GlobalFilter {
@@ -1054,6 +1106,8 @@ public interface GlobalFilter {
     Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain);
 }
 ```
+
+<font color='red'>exchange可以用来获得Request和Response对象，chain用来放行</font>
 
 
 
@@ -1094,12 +1148,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+// 用来定义过滤器优先级，Integer.MIN_VALUE优先级最高，数值越小优先级越高
 @Order(-1)
 @Component
 public class AuthorizeFilter implements GlobalFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        // 1.获取请求参数
+        // 1.获取请求参数 exchange.getRequest()可以用来获得请求对象，getQueryParams()用来获得请求对象
         MultiValueMap<String, String> params = exchange.getRequest().getQueryParams();
         // 2.获取authorization参数
         String auth = params.getFirst("authorization");
@@ -1125,6 +1180,12 @@ public class AuthorizeFilter implements GlobalFilter {
 
 请求进入网关会碰到三类过滤器：当前路由的过滤器、DefaultFilter、GlobalFilter
 
+- <font color='red'>路由过滤器、默认过滤器是在配置文件配置的，全局过滤器是自定义的过滤器</font>
+
+- <font color='red'>路由过滤器和默认过滤器的实现类是GatewayFilter，而全局过滤器的实现是GlobalFilter，所以存在一个GatewayFilterAdapter使得GlobalFilter可以去适配GatewayFilter</font>
+
+  ![image-20230425175841873](C:\Users\84334\Desktop\zdcat_note\黑马微服务\assets\image-20230425175841873.png)
+
 请求路由后，会将当前路由过滤器和DefaultFilter、GlobalFilter，合并到一个过滤器链（集合）中，排序后依次执行每个过滤器：
 
 ![image-20210714214228409](assets/image-20210714214228409.png)
@@ -1135,8 +1196,8 @@ public class AuthorizeFilter implements GlobalFilter {
 
 - 每一个过滤器都必须指定一个int类型的order值，**order值越小，优先级越高，执行顺序越靠前**。
 - GlobalFilter通过实现Ordered接口，或者添加@Order注解来指定order值，由我们自己指定
-- 路由过滤器和defaultFilter的order由Spring指定，默认是按照声明顺序从1递增。
-- 当过滤器的order值一样时，会按照 defaultFilter > 路由过滤器 > GlobalFilter的顺序执行。
+- <font color='red'>路由过滤器和defaultFilter的order由Spring指定，默认是按照声明顺序从1递增</font>。
+- <font color='red'>当过滤器的order值一样时，会按照 defaultFilter > 路由过滤器 > GlobalFilter的顺序执行。</font> <font color='cornflowerblue'>即在配置文件写的路哟过滤器和默认过滤器的优先级都是各自从1开始的，所以当优先级相同时，按照默认过滤器 > 路由过滤器 > 全局过滤器的顺序来的</font>
 
 
 
@@ -1164,9 +1225,15 @@ public class AuthorizeFilter implements GlobalFilter {
 
 跨域问题：浏览器禁止请求的发起者与服务端发生跨域ajax请求，请求被浏览器拦截的问题
 
+<img src="C:\Users\84334\Desktop\zdcat_note\黑马微服务\assets\image-20230425182949700.png" alt="image-20230425182949700"  />
 
+<font color='red'>协议、域名、端口有一个不一样就说明是不同源，不同源就会出现跨域问题。正常的请求转发是不会发生协议、域名、端口发生变更的，所以ajax是一种很容易出现跨域问题的请求方式</font>
 
 解决方案：CORS，这个以前应该学习过，这里不再赘述了。不知道的小伙伴可以查看https://www.ruanyifeng.com/blog/2016/04/cors.html
+
+![image-20230425183156438](C:\Users\84334\Desktop\zdcat_note\黑马微服务\assets\image-20230425183156438.png)
+
+<font color='red'>解决方案的宗旨就是</font><font color='cornflowerblue'>在后端服务添加cors策略的配置</font>
 
 
 
@@ -1182,7 +1249,7 @@ public class AuthorizeFilter implements GlobalFilter {
 
 ![image-20210714215832675](assets/image-20210714215832675.png)
 
-
+<font color='red'>访问了一个index.html，但是在这个index.html里面ajax发送了一个与与访问index.html的不同源的请求，就发生了跨域问题</font>
 
 从localhost:8090访问localhost:10010，端口不同，显然是跨域的请求。
 
@@ -1191,6 +1258,8 @@ public class AuthorizeFilter implements GlobalFilter {
 ### 3.6.3.解决跨域问题
 
 在gateway服务的application.yml文件中，添加下面的配置：
+
+<font color='red'>在微服务的解决跨域的方式就是在gateway的配置里加上处理跨域的配置</font>
 
 ```yaml
 spring:
