@@ -612,15 +612,21 @@ docker run命令的常见参数有哪些？
 1. ​	<font color='red'>docker的 `数据卷` html目录，这个目录实际上就是你在docker里面建立的volumes中的一个volume，可以在docker单独的操作，其真实的磁盘位置是 `宿主机` 的  `/var/lib/docker/volumes/html` 目录</font>
 2. <font color='red'>容器里的位置  `/usr/share/nginx/html` </font>
 
-<font color='cornflowerblue'>本质上来说，是把 `容器` 里的 `/usr/share/nginx/html` 这个目录 `挂载` 到了宿主机里的 `/var/lib/docker/volumes/html` 这个位置 ，那么挂载操作干的事情只有一件！就是把容器里的 `/usr/share/nginx/html` 文件放到了宿主机里面的 `/var/lib/docker/volumes/html` ，然后容器里的文件的修改会随着宿主机的文件的修改而修改，这是挂载的意思。把容器里的文件挂载到宿主机里，然后修改宿主机里的文件就相当于修改容器里的文件</font>
+> Docker挂载的本质是将主机（即宿主机）上的目录或文件映射到容器中，这样容器就可以访问主机上的文件或目录。因此，它是把主机的文件映射到容器中，而不是相反。
+>
+> 在Docker中，挂载操作通常通过`-v`或者`--mount`参数来实现。其中，`-v`参数更简单易用，但是功能相对较弱，只能实现基本的挂载；而`--mount`参数则更为灵活、功能更强大，可以实现更多的高级挂载操作，例如挂载时指定读写权限等。
+>
+> 需要注意的是，在进行Docker挂载时，如果您将主机上的某个目录映射到容器中的某个目录，那么该目录及其子目录下的所有文件都会被映射到容器中。因此，在使用Docker挂载时，需要特别注意所挂载的目录和文件，避免因错误的操作导致数据丢失。
 
-<font color='cornflowerblue'>那么我们创建的数据卷 `volume` 有什么用呢？有用的，比如我们 `docker volume create html` 创建了一个名为 `html` 的数据卷，这个数据卷在数据卷是有真实地址的，即 `/var/lib/docker/volumes/html`，然后我们启动容器的时候可以通过 `-v` 去将容器的文件挂载到 `html` 上，虽然是挂载到 `html` 上，但是实际上还是挂载到宿主机的文件上 </font>
+<font color='cornflowerblue'>挂载是将宿主机的文件或者目录 `映射` 到容器里，这样就做到了修改宿主机就是修改容器里的文件，不过要注意宿主机在挂载的时候要注意可能会发生文件的覆盖（同名覆盖，没有的话会合并），也就是说宿主机目录和容器目录会做 `合并` （相同就宿主机覆盖容器）</font>
+
+<font color='cornflowerblue'>我们既可以说是将 宿主机目录 `映射到` 容器目录，也可以说将宿主机目录 `挂载` 到文件目录 </font>
 
 <font color='red'>这样，我们操作宿主机的/var/lib/docker/volumes/html目录，就等于操作容器内的/usr/share/nginx/html目录了</font>
 
 
 
-<font color='red'>简而言之，创建 `数据卷` ，然后在容器启动时将容器里的某个文件夹挂载到 `数据卷` 上，其实就是挂载到 `宿主机` 的文件夹上，这样操作 `宿主机` 的文件夹就是操作 `容器` 的文件夹，注意是将  `容器的文件夹` 挂载到  `宿主机文件夹` </font>
+
 
 
 
@@ -757,7 +763,7 @@ cd /var/lib/docker/volumes/html/_data
 vi index.html
 ```
 
- 
+ <font color='cornflowerblue'>因为挂载的时候是将宿主机目录和容器目录合并，而不是宿主机目录直接覆盖容器目录，这也是为什么我们上面刚执行了 `-v html:/usr/share/nginx/html` 这个参数，html数据卷对应的宿主机目录就有容器目录下的文件了</font>
 
 ### 2.3.6.案例-给MySQL挂载本地目录
 
@@ -795,9 +801,9 @@ vi index.html
 
 4）去DockerHub查阅资料，创建并运行MySQL容器，要求：
 
-① 挂载/tmp/mysql/data到mysql容器内数据存储目录
+① 挂载/tmp/mysql/data到mysql容器内数据存储目录  <font color='red'>注意这里是宿主机目录挂载到容器目录，所以是合并（同名覆盖）</font>
 
-② 挂载/tmp/mysql/conf/hmy.cnf到mysql容器的配置文件
+② 挂载/tmp/mysql/conf/hmy.cnf到mysql容器的配置文件	<font color='red'>这里是宿主机文件挂载到容器文件，所以是覆盖</font>
 
 ③ 设置MySQL密码
 
@@ -805,11 +811,11 @@ vi index.html
 
 ### 2.3.7.小结
 
-docker run的命令中通过 -v 参数挂载文件或目录到容器中：
+<font color='red'>docker run的命令中通过 -v 参数挂载文件或目录到容器中：</font>
 
-- -v volume名称:容器内目录
-- -v 宿主机文件:容器内文
-- -v 宿主机目录:容器内目录
+- <font color='red'>-v volume名称:容器内目录</font>
+- <font color='red'>-v 宿主机文件:容器内文件</font>
+- <font color='red'>-v 宿主机目录:容器内目录</font>
 
 数据卷挂载与目录直接挂载的
 
@@ -838,9 +844,9 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
 
 
 
-简单来说，镜像就是在系统函数库、运行环境基础上，添加应用程序文件、配置文件、依赖文件等组合，然后编写好启动脚本打包在一起形成的文件。
+简单来说，镜像就是在**系统函数库、运行环境**基础上，添加应用程序文件、配置文件、依赖文件等组合，然后编写好启动脚本打包在一起形成的文件。
 
-
+<font color='red'>其实很好理解，镜像的最基本就是 `系统函数库` 和 `运行环境` ，那么在此之上添加 `应用程序文件` 、 `配置文件` 等等，然后再来一个 `启动脚本` 就构成了镜像文件</font>
 
 我们要构建镜像，其实就是实现上述打包的过程。
 
@@ -892,7 +898,7 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
 
   ![image-20210801101410200](assets/image-20210801101410200.png)
 
-- 步骤4：拷贝课前资料提供的Dockerfile到docker-demo这个目录
+- 步骤4：拷贝课前资料提供的Dockerfile到docker-demo这个目录 <font color='red'>docker file的作用到时候docker build的时候执行的是docker file这个文件</font>
 
   ![image-20210801101455590](assets/image-20210801101455590.png)
 
@@ -905,17 +911,18 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
   ENV JAVA_DIR=/usr/local
   
   # 拷贝jdk和java项目的包
-  COPY ./jdk8.tar.gz $JAVA_DIR/
-  COPY ./docker-demo.jar /tmp/app.jar
+  # COPY是把宿主机的文件放到镜像里
+  COPY ./jdk8.tar.gz $JAVA_DIR/ # 把jdk放进镜像
+  COPY ./docker-demo.jar /tmp/app.jar	# 把要运行的jar包放进镜像
   
   # 安装JDK
-  RUN cd $JAVA_DIR \
-   && tar -xf ./jdk8.tar.gz \
-   && mv ./jdk1.8.0_144 ./java8
+  RUN cd $JAVA_DIR \				# 进入java安装目录
+   && tar -xf ./jdk8.tar.gz \		# 解压jdk
+   && mv ./jdk1.8.0_144 ./java8	# 改名java8
   
   # 配置环境变量
-  ENV JAVA_HOME=$JAVA_DIR/java8
-  ENV PATH=$PATH:$JAVA_HOME/bin
+  ENV JAVA_HOME=$JAVA_DIR/java8	# 配置JAVA_HOME
+  ENV PATH=$PATH:$JAVA_HOME/bin	# 给PATH后添加jdk的bin的执行文件
   
   # 暴露端口
   EXPOSE 8090
@@ -923,7 +930,8 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
   ENTRYPOINT java -jar /tmp/app.jar
   ```
 
-  
+
+<font color='red'>其实可以发现，上面这个dockerfile文件很多步骤都是用来配置jdk的，真正最有用的那个步骤其实是第9行，把自己写的jar包放进镜像，那其实这个配置jdk的过程可以复用，下面有优化</font>
 
 - 步骤5：进入docker-demo
 
@@ -935,7 +943,7 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
   docker build -t javaweb:1.0 .
   ```
 
-  
+  <font color='red'>最后一定有一个 `.` ，作用是说明 `docker file` 这个文件所在的位置，这里用的是相对路径</font>
 
 最后访问 http://192.168.150.101:8090/hello/count，其中的ip改成你的虚拟机ip
 
@@ -943,13 +951,13 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
 
 ### 3.3.2.基于java8构建Java项目
 
-虽然我们可以基于Ubuntu基础镜像，添加任意自己需要的安装包，构建镜像，但是却比较麻烦。所以大多数情况下，我们都可以在一些安装了部分软件的基础镜像上做改造。
+虽然我们可以基于Ubuntu基础镜像，添加任意自己需要的安装包，构建镜像，但是却比较麻烦。所以大多数情况下，我们都可以在一些安装了部分软件的基础镜像上做改造。<font color='red'>即我们用功能更多一点的基础镜像，即from一个配置好了jdk的一个操作系统，而不是from 一个空系统</font>
 
-例如，构建java项目的镜像，可以在已经准备了JDK的基础镜像基础上构建。
+例如，构建java项目的镜像，可以在已经准备了JDK的基础镜像基础上构建。<font color='cornflowerblue'> `java:8-alpine镜像` ，这个镜像就是已经配置好jdk的基础镜像</font>
 
 
 
-需求：基于java:8-alpine镜像，将一个Java项目构建为镜像
+需求：基于**java:8-alpine**镜像，将一个Java项目构建为镜像
 
 实现思路如下：
 
@@ -970,10 +978,10 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
     内容如下：
 
     ```dockerfile
-    FROM java:8-alpine
-    COPY ./app.jar /tmp/app.jar
-    EXPOSE 8090
-    ENTRYPOINT java -jar /tmp/app.jar
+    FROM java:8-alpine # 可以看到只需要from这个镜像即可，而不是from ubuntu
+    COPY ./app.jar /tmp/app.jar	# 只需把自己的jar包拷入镜像
+    EXPOSE 8090	# 暴露端口
+    ENTRYPOINT java -jar /tmp/app.jar	# 写一个入口
     ```
 
     
@@ -988,11 +996,11 @@ docker run的命令中通过 -v 参数挂载文件或目录到容器中：
 
 小结：
 
-1. Dockerfile的本质是一个文件，通过指令描述镜像的构建过程
+1. **Dockerfile的本质是一个文件，通过指令描述镜像的构建过程**
 
 2. Dockerfile的第一行必须是FROM，从一个基础镜像来构建
 
-3. 基础镜像可以是基本操作系统，如Ubuntu。也可以是其他人制作好的镜像，例如：java:8-alpine
+3. <font color='red'>基础镜像可以是基本操作系统，如Ubuntu。也可以是其他人制作好的镜像，例如：java:8-alpine</font>
 
 
 
@@ -1006,18 +1014,20 @@ Docker Compose可以基于Compose文件帮我们快速的部署分布式应用�
 
 Compose文件是一个文本文件，通过指令定义集群中的每个容器如何运行。格式如下：
 
-```json
-version: "3.8"
+<font color='red'>就是写一个compose文件，和dockerfile文件很像，写一个dockerfile来表示镜像是怎么生成的，这里写compose文件来表示微服务集群是怎么部署的，如果没有compose文件，那么微服务集群的部署就是一个一个去docker run，有了compose文件，就可以以yml的格式去配置每个微服务对应的在docker run命令里的参数，也不用我们对每个服务去docker run了，写一个compose文件，然后去运行，整个微服务集群就部署好了</font>
+
+```yml
+version: "3.8" 
  services:
   mysql:
-    image: mysql:5.7.25
+    image: mysql:5.7.25 # 镜像来源
     environment:
      MYSQL_ROOT_PASSWORD: 123 
-    volumes:
+    volumes: # 数据卷的配置，即配置挂载
      - "/tmp/mysql/data:/var/lib/mysql"
      - "/tmp/mysql/conf/hmy.cnf:/etc/mysql/conf.d/hmy.cnf"
   web:
-    build: .
+    build: . # 注意web这个服务的镜像来源是build，那么后面的“.”是说明dockerfile在当前目录
     ports:
      - "8090:8090"
 
@@ -1034,7 +1044,7 @@ DockerCompose的详细语法参考官网：https://docs.docker.com/compose/compo
 
 
 
-其实DockerCompose文件可以看做是将多个docker run命令写到一个文件，只是语法稍有差异。
+**其实DockerCompose文件可以看做是将多个docker run命令写到一个文件，只是语法稍有差异。**
 
 
 
@@ -1077,20 +1087,20 @@ version: "3.2"
 
 services:
   nacos:
-    image: nacos/nacos-server
-    environment:
+    image: nacos/nacos-server # 镜像来源
+    environment:	# nacos主机模式
       MODE: standalone
     ports:
       - "8848:8848"
   mysql:
-    image: mysql:5.7.25
+    image: mysql:5.7.25	# 镜像来源
     environment:
-      MYSQL_ROOT_PASSWORD: 123
-    volumes:
+      MYSQL_ROOT_PASSWORD: 123	# 密码
+    volumes:	# 配置两个挂载
       - "$PWD/mysql/data:/var/lib/mysql"
       - "$PWD/mysql/conf:/etc/mysql/conf.d/"
   userservice:
-    build: ./user-service
+    build: ./user-service	# 自己写的
   orderservice:
     build: ./order-service
   gateway:
@@ -1112,6 +1122,10 @@ services:
     - `MYSQL_ROOT_PASSWORD: 123`：设置数据库root账户的密码为123
   - `volumes`：数据卷挂载，这里挂载了mysql的data、conf目录，其中有我提前准备好的数据
 - `userservice`、`orderservice`、`gateway`：都是基于Dockerfile临时构建的
+
+
+
+<font color='red'>自己写的服务需要使用build去构建镜像（构建过程就是jar包配合docker file文件就好了，注意不要from 空的镜像，要from jdk已经配置好的镜像，比如 `java:8-alpine` 这个镜像），不是自己写的用官方的，然后配置好参数、挂载好文件就好了</font>
 
 
 
@@ -1137,7 +1151,7 @@ ENTRYPOINT java -jar /tmp/app.jar
 
 ### 4.3.2.修改微服务配置
 
-因为微服务将来要部署为docker容器，而容器之间互联不是通过IP地址，而是通过容器名。这里我们将order-service、user-service、gateway服务的mysql、nacos地址都修改为基于容器名的访问。
+<font color='red'>因为微服务将来要部署为docker容器，而容器之间互联不是通过IP地址，而是通过容器名</font>。这里我们将order-service、user-service、gateway服务的mysql、nacos地址都修改为基于容器名的访问。
 
 如下所示：
 

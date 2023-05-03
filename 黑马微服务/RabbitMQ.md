@@ -59,7 +59,15 @@
 
 
 
-为了解除事件发布者与订阅者之间的耦合，两者并不是直接通信，而是有一个中间人（Broker）。发布者发布事件到Broker，不关心谁来订阅事件。订阅者从Broker订阅事件，不关心谁发来的消息。
+<font color='red'>为了解除事件发布者与订阅者之间的耦合，两者并不是直接通信，而是有一个中间人（Broker）。</font>发布者发布事件到Broker，不关心谁来订阅事件。订阅者从Broker订阅事件，不关心谁发来的消息。
+
+<font color='cornflowerblue'>也就是说，假如说原来的业务需求是服务A调用服务B，然后服务A调用服务C，那以后加了个需求说让服务A调用服务D，那么就需要更改服务A的代码，以后需求再变化，那还要改A的代码，为什么要一直修改A的代码？因为A调用B、C、D，都是同步调用，都是在服务A的代码里调用的B、C、D，你业务发生变化了，修改A的代码不是理所当然的吗？</font>
+
+<font color='cornflowerblue'>现在采用时间驱动模式，由A去发布事件给 `broker` ，接收方去找 `broker` 订阅事件，那么A发布事件之后，A就不需要操心事情了，因为事件交给了 `broker` ，B、C、D服务都是去订阅 `broker` 的事件的，只有B、C、D各自订阅的事件发生了，B、C、D才会干事情，再也不需要A去调用B、C、D了</font>
+
+
+
+<font color='cornflowerblue'>简而言之，就是从 `调用与被调用` 转换为 `发布实践与订阅事件` ，前者有很强的耦合，后者耦合程度很低</font>
 
 ![image-20210422095356088](assets/image-20210422095356088.png)
 
@@ -76,9 +84,9 @@ Broker 是一个像数据总线一样的东西，所有的服务要接收数据�
 - 故障隔离：服务没有直接调用，不存在级联失败问题
 - 调用间没有阻塞，不会造成无效的资源占用
 - 耦合度极低，每个服务都可以灵活插拔，可替换
-- 流量削峰：不管发布事件的流量波动多大，都由Broker接收，订阅者可以按照自己的速度去处理事件
+- 流量削峰：不管发布事件的流量波动多大，都由Broker接收，订阅者可以按照自己的速度去处理事件  <font color='red'>注意这里有异步调用的那个流水线的感觉，每个人都负责各自负责的那一部分，就会增大系统的吞吐量</font>
 
-
+<font color='red'>所以异步调用就解决了同步调用发生的很多问题</font>
 
 缺点：
 
@@ -97,9 +105,11 @@ Broker 是一个像数据总线一样的东西，所有的服务要接收数据�
 
 MQ，中文是消息队列（MessageQueue），字面来看就是存放消息的队列。也就是事件驱动架构中的Broker。
 
+<font color='red'>即要学习的 `消息队列` 就是 `broker` </font>
+
 比较常见的MQ实现：
 
-- ActiveMQ
+- ActiveMQ 
 - RabbitMQ
 - RocketMQ
 - Kafka
@@ -145,10 +155,22 @@ MQ的基本结构：
 RabbitMQ中的一些角色：
 
 - publisher：生产者
+
 - consumer：消费者
-- exchange个：交换机，负责消息路由
+
+  <font color='red'>生产者、消费者不必多说</font>
+
+- exchange：交换机，负责消息路由
+
+  <font color='red'>exchange负责路由</font>
+
 - queue：队列，存储消息
+
+  <font color='red'>存储的消息都在队列里</font>
+
 - virtualHost：虚拟主机，隔离不同租户的exchange、queue、消息的隔离
+
+- channel：通道，通过channel发送数据啥的估计是，估计和 `netty` 里面的 `channel` 差不多作用，可以通过 `channel` 发送数据和传输数据
 
 
 
@@ -198,7 +220,7 @@ RabbitMQ官方提供了5个不同的Demo示例，对应了不同的消息模型�
 
 
 
-
+<font color='red'>入门案例的代码貌似不重要，可以不看</font>
 
 ### 2.4.1.publisher实现
 
@@ -358,6 +380,8 @@ public class ConsumerTest {
 
 SpringAMQP是基于RabbitMQ封装的一套模板，并且还利用SpringBoot对其实现了自动装配，使用起来非常方便。
 
+<font color='red'>AMQP是业务之间传递消息（发送消息、接收消息）的标准，本质就是一种协议，即消息队列的标准</font>
+
 SpringAmqp的官方地址：https://spring.io/projects/spring-amqp
 
 ![image-20210717164024967](assets/image-20210717164024967.png)
@@ -375,6 +399,8 @@ SpringAMQP提供了三个功能：
 
 
 ## 3.1.Basic Queue 简单队列模型
+
+<font color='red'>注意是简单的队列模型，只需要做到消息的发送和接收就ok了</font>
 
 在父工程mq-demo中引入依赖
 
@@ -419,7 +445,8 @@ import org.springframework.test.context.junit4.SpringRunner;
 @RunWith(SpringRunner.class)
 @SpringBootTest
 public class SpringAmqpTest {
-
+	
+    // 通过RabbitTemplate发送消息
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
@@ -435,7 +462,7 @@ public class SpringAmqpTest {
 }
 ```
 
-
+<font color='red'>注意这里发完之后就什么都不管了</font>
 
 
 
@@ -466,6 +493,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class SpringRabbitListener {
 
+    // 设置一个监听方法，并且配置队列
     @RabbitListener(queues = "simple.queue")
     public void listenSimpleQueueMessage(String msg) throws InterruptedException {
         System.out.println("spring 消费者接收到消息：【" + msg + "】");
@@ -491,7 +519,7 @@ Work queues，也被称为（Task queues），任务模型。简单来说就是*
 
 当消息处理比较耗时的时候，可能生产消息的速度会远远大于消息的消费速度。长此以往，消息就会堆积越来越多，无法及时处理。
 
-此时就可以使用work 模型，多个消费者共同处理消息处理，速度就能大大提高了。
+此时就可以使用work 模型，**多个消费者**共同处理消息处理，速度就能大大提高了。
 
 
 
@@ -571,7 +599,7 @@ spring:
   rabbitmq:
     listener:
       simple:
-        prefetch: 1 # 每次只能获取一条消息，处理完成才能获取下一个消息
+        prefetch: 1 # 每次只能获取一条消息，处理完成才能获取下一个消息，即方法执行完才能获取下一个消息，那么设置一次获取一条消息，那就是谁先执行完谁就拿下一条消息
 ```
 
 
@@ -580,8 +608,8 @@ spring:
 
 Work模型的使用：
 
-- 多个消费者绑定到一个队列，同一条消息只会被一个消费者处理
-- 通过设置prefetch来控制消费者预取的消息数量
+- 多个消费者绑定到一个队列，同一条消息只会被一个消费者处理 <font color='red'>workqueue队列和basic队列一样，由publisher发送的消息只会被一个消费者拿走，而且只会被消费一次，不同于发布/订阅模型</font>
+- **通过设置prefetch来控制消费者预取的消息数量**
 
 
 
@@ -620,10 +648,10 @@ Fanout，英文翻译是扇出，我觉得在MQ中叫广播更合适。
 在广播模式下，消息发送流程是这样的：
 
 - 1）  可以有多个队列
-- 2）  每个队列都要绑定到Exchange（交换机）
-- 3）  生产者发送的消息，只能发送到交换机，交换机来决定要发给哪个队列，生产者无法决定
-- 4）  交换机把消息发送给绑定过的所有队列
-- 5）  订阅队列的消费者都能拿到消息
+- 2）  <font color='red'>每个队列都要绑定到Exchange（交换机）</font>
+- 3）  <font color='red'>生产者发送的消息，只能发送到交换机，交换机来决定要发给哪个队列，生产者无法决定</font>
+- 4）  <font color='red'>交换机把消息发送给绑定过的所有队列</font>
+- 5）  <font color='red'>订阅队列的消费者都能拿到消息</font>
 
 
 
@@ -647,6 +675,8 @@ Spring提供了一个接口Exchange，来表示所有不同类型的交换机：
 
 
 在consumer中创建一个类，声明队列和交换机：
+
+<font color='red'>这个方式是基于bean的创建队列和交换机</font>
 
 ```java
 package cn.itcast.mq.config;
@@ -682,6 +712,7 @@ public class FanoutConfig {
      */
     @Bean
     public Binding bindingQueue1(Queue fanoutQueue1, FanoutExchange fanoutExchange){
+        // 进行一个绑定关系，把队列1绑定到交换机上
         return BindingBuilder.bind(fanoutQueue1).to(fanoutExchange);
     }
 
@@ -698,6 +729,7 @@ public class FanoutConfig {
      */
     @Bean
     public Binding bindingQueue2(Queue fanoutQueue2, FanoutExchange fanoutExchange){
+        // 进行一个绑定关系，把队列2绑定到交换机上
         return BindingBuilder.bind(fanoutQueue2).to(fanoutExchange);
     }
 }
@@ -712,10 +744,12 @@ public class FanoutConfig {
 ```java
 @Test
 public void testFanoutExchange() {
-    // 队列名称
+    // 交换机名称
     String exchangeName = "itcast.fanout";
     // 消息
     String message = "hello, everyone!";
+    
+    // 生产者通过rabbitTemplate把消息发送到交换机上
     rabbitTemplate.convertAndSend(exchangeName, "", message);
 }
 ```
@@ -728,6 +762,7 @@ public void testFanoutExchange() {
 
 ```java
 @RabbitListener(queues = "fanout.queue1")
+// 通过绑定对应的队列，从队列里获得数据
 public void listenFanoutQueue1(String msg) {
     System.out.println("消费者1接收到Fanout消息：【" + msg + "】");
 }
@@ -747,7 +782,7 @@ public void listenFanoutQueue2(String msg) {
 交换机的作用是什么？
 
 - 接收publisher发送的消息
-- 将消息按照规则路由到与之绑定的队列
+- 将消息按照规则路由到与之绑定的队列<font color='red'>（注意是把消息发送到与交换机绑定的所有的队列上，达到一个广播的效果）</font>
 - 不能缓存消息，路由失败，消息丢失
 - FanoutExchange的会将消息路由到每个绑定的队列
 
@@ -765,7 +800,7 @@ public void listenFanoutQueue2(String msg) {
 
 ![image-20210717170041447](assets/image-20210717170041447.png)
 
- 在Direct模型下：
+<font color='red'> 在Direct模型下：</font>
 
 - 队列与交换机的绑定，不能是任意绑定了，而是要指定一个`RoutingKey`（路由key）
 - 消息的发送方在 向 Exchange发送消息时，也必须指定消息的 `RoutingKey`。
@@ -791,14 +826,18 @@ public void listenFanoutQueue2(String msg) {
 
 ### 3.5.1.基于注解声明队列和交换机
 
-基于@Bean的方式声明队列和交换机比较麻烦，Spring还提供了基于注解方式来声明。
+基于@Bean的方式声明队列和交换机比较麻烦，<font color='red'>（个人感觉这里是因为要配置绑定关键词，所以用bean的方式配肯定没有用注解的方式配简单）</font>Spring还提供了基于注解方式来声明。
 
 在consumer的SpringRabbitListener中添加两个消费者，同时基于注解来声明队列和交换机：
 
 ```java
+// 监听方法
 @RabbitListener(bindings = @QueueBinding(
+    // 绑定队列
     value = @Queue(name = "direct.queue1"),
+    // 绑定交换机
     exchange = @Exchange(name = "itcast.direct", type = ExchangeTypes.DIRECT),
+    // 给队列绑定关键词，即交换机会把对应关键词的消息发送到队列上，注意关键词绑定的是在队列上而不是消费者上
     key = {"red", "blue"}
 ))
 public void listenDirectQueue1(String msg){
@@ -814,6 +853,46 @@ public void listenDirectQueue2(String msg){
     System.out.println("消费者接收到direct.queue2的消息：【" + msg + "】");
 }
 ```
+
+<font color='red'>注意关键词绑定的是在队列上而不是消费者上，交换机是发送对应的消息到队列上，然后消费者从队列拿</font>
+
+<font color='cornflowerblue'>注解里 @某个注解可以作为返回值，比如上面的 `@RabbitListener` 注解的 `bingdings` 属性接收的是 `QueueBinding` 类型的数据</font>
+
+![image-20230501115758319](C:\Users\84334\Desktop\zdcat_note\黑马微服务\assets\image-20230501115758319.png)
+
+<font color='cornflowerblue'>但是我们上面的写法是 `@RabbitListener(bindings = @QueueBinding(配置东西)` ，即在注解中，我们可以用注解作为返回值作为类型的返回，但是因为注解本身就是用来配置的，所以和new对象有点像，但又不完全一样，总之，知道在注解中有一种新的写法就ok，在大注解的配置中，可以用小注解作为大注解的属性的值，前提是属性要求的类型和小注解是同一个类型</font>
+
+
+
+<font color='red'>注解中的配置只能接收注解</font>
+
+```java
+@Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface QueueBinding {
+
+    /**
+     * The queue.
+     * @return the queue.
+     */
+    Queue value() default @Queue;
+
+    /**
+     * The exchange.
+     * @return the exchange.
+     */
+    Exchange exchange() default @Exchange;
+
+    /**
+     * The routing key(s).
+     * @return the routing key(s).
+     */
+    String[] key() default {};
+}
+```
+
+<font color='red'>可以看到 `QueueBinding` 这个注解里面的参数value是Queue类型的，但是因为注解中的大部分外在的类型，比如第10行的Queue、第16行的Exchange，所以其value、exchange属性接收的都是注解类型，但是第22行的String数组，很明显可以直接赋值，所以复杂一点的类型必须以注解的形式返回</font>
 
 
 
@@ -841,9 +920,9 @@ public void testSendDirectExchange() {
 
 描述下Direct交换机与Fanout交换机的差异？
 
-- Fanout交换机将消息路由给每一个与之绑定的队列
-- Direct交换机根据RoutingKey判断路由给哪个队列
-- 如果多个队列具有相同的RoutingKey，则与Fanout功能类似
+- <font color='red'>Fanout交换机将消息路由给每一个与之绑定的队列</font>
+- <font color='red'>Direct交换机根据RoutingKey判断路由给哪个队列（队列上由RountingKey）</font>
+- <font color='red'>如果多个队列具有相同的RoutingKey，则与Fanout功能类似</font>
 
 基于@RabbitListener注解声明队列和交换机有哪些常见注解？
 
@@ -880,16 +959,13 @@ public void testSendDirectExchange() {
 
 `item.*`：只能匹配`item.spu`
 
-​     
+​     <font color='red'>这里的通配符和往常学习的通配符不太一样</font>
 
 图示：
 
  ![image-20210717170705380](assets/image-20210717170705380.png)
 
-解释：
 
-- Queue1：绑定的是`china.#` ，因此凡是以 `china.`开头的`routing key` 都会被匹配到。包括china.news和china.weather
-- Queue2：绑定的是`#.news` ，因此凡是以 `.news`结尾的 `routing key` 都会被匹配。包括china.news和japan.news
 
 
 
@@ -907,7 +983,10 @@ public void testSendDirectExchange() {
 
 ![image-20210717170829229](assets/image-20210717170829229.png)
 
+解释：
 
+- Queue1：绑定的是`china.#` ，因此凡是以 `china.`开头的`routing key` 都会被匹配到。包括china.news和china.weather
+- Queue2：绑定的是`#.news` ，因此凡是以 `.news`结尾的 `routing key` 都会被匹配。包括china.news和japan.news
 
 
 
@@ -933,6 +1012,8 @@ public void testSendTopicExchange() {
 
 
 ### 3.6.3.消息接收
+
+<font color='red'>别忘了大注解的属性可以被小注解赋值，然后去配置小注解就好了</font>
 
 在consumer服务的SpringRabbitListener中添加方法：
 
@@ -984,6 +1065,10 @@ public void listenTopicQueue2(String msg){
 - 可读性差
 
 我们来测试一下。
+
+
+
+
 
 
 
